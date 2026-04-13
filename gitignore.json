@@ -3,6 +3,3 @@ __pycache__/
 *.pyccredentials.json
 __pycache__/
 .DS_Store
-credentials.json
-__pycache__/
-.DS_Store
