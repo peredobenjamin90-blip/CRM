@@ -71,11 +71,15 @@ def cargar_datos():
             worksheet = sh.get_worksheet(0)
             data = worksheet.get_all_records()
             df = pd.DataFrame(data)
+            if df.empty:
+                continue
             df["Año"] = año
             dfs.append(df)
         except Exception as e:
             st.error(f"Error cargando {año}: {e}")
-    return pd.concat(dfs, ignore_index=True) if dfs else None
+    if not dfs:
+        return pd.DataFrame()
+    return pd.concat(dfs, ignore_index=True)
 
 # ── LOGIN ──
 def login():
@@ -113,8 +117,8 @@ if "usuario" not in st.session_state:
 # ── CARGAR DATOS ──
 df = cargar_datos()
 
-if df is not None:
-    df.columns = df.columns.str.strip() 
+if df is not None and not df.empty:
+    df.columns = df.columns.str.strip()
     df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")
     df["Monto"] = pd.to_numeric(df["Monto"], errors="coerce")
     df["Mes"] = df["Fecha"].dt.month
@@ -136,8 +140,7 @@ if df is not None:
                 st.session_state["pagina"] = p
 
         st.markdown("---")
-        tiempo_restante = 300
-        st.caption(f"Datos actualizados cada 5 min")
+        st.caption("Datos actualizados cada 5 min")
         if st.button("Actualizar datos", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
