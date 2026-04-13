@@ -42,10 +42,10 @@ st.markdown("""
 
 # ── GOOGLE SHEETS ──
 SHEET_IDS = {
-    2022: "1KM7dutsgxEc0nrepHtyTZ-Zcqs4LiDqm",
-    2023: "1c24BtmVgXDkETD8iisTl7iK0sCRs7Prw",
-    2024: "1Fdqf3-6sORVOEXwULSacZjEKdZGjFrMd",
-    2025: "1Ak8HfvSJKotVDxxZR5Fq9Ff96F8sffdR",
+    2022: "1L3wzHhc6_sN7h361uqXFI7lKzGobl_vtuHEDVTbCEdc",
+    2023: "1e7B1Hp5zWJ3kLSS6d8CQoESYsaDWyIrFhIGcSRJE_Ag",
+    2024: "1cVfveU9err9N6RI23OOHEABV8m8Rj9wRkO3F27o6TAg",
+    2025: "1IodGW1K7c7GQBa90k6O8YCFOtwt3sA2PDFa7mmOkZ0E",
 }
 
 @st.cache_resource
@@ -67,7 +67,7 @@ def cargar_datos():
     for año, sheet_id in SHEET_IDS.items():
         try:
             sh = client.open_by_key(sheet_id)
-            worksheet = sh.worksheet("Hoja1")
+            worksheet = sh.get_worksheet(0)
             data = worksheet.get_all_records()
             df = pd.DataFrame(data)
             df["Año"] = año
