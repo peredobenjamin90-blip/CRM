@@ -120,7 +120,7 @@ df = cargar_datos()
 
 if df is not None and not df.empty:
     df.columns = df.columns.str.strip()
-    df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce", dayfirst=True)
+    df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")
     df["Monto"] = (
     df["Monto"]
     .astype(str)
