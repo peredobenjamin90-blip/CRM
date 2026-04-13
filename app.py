@@ -72,11 +72,8 @@ def cargar_datos():
             data = worksheet.get_all_records()
             df = pd.DataFrame(data)
 
-            st.write(f"Año {año} - Filas cargadas:", len(df))  # DEBUG
-
             if df.empty:
-                st.warning(f"{año} está vacío o mal formateado")
-            continue
+                continue
             df["Año"] = año
             dfs.append(df)
         except Exception as e:
