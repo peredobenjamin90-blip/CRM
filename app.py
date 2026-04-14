@@ -346,6 +346,38 @@ if df is not None and not df.empty:
         sin_servicio = sin_servicio.sort_values("Ultimo servicio")
         st.metric("Clientes a contactar", len(sin_servicio))
         st.dataframe(sin_servicio, use_container_width=True)
+        import urllib.parse
+
+        st.markdown("### Enviar mensaje por WhatsApp")
+
+        if not sin_servicio.empty:
+    # Selector de cliente (nombre + teléfono para evitar duplicados)
+                cliente_sel = st.selectbox(
+                    "Selecciona cliente:",
+                    sin_servicio.apply(lambda x: f"{x['Nombre']} - {x['Tel']}", axis=1)
+    )
+
+    # Separar datos
+                nombre = cliente_sel.split(" - ")[0]
+                telefono = cliente_sel.split(" - ")[1].replace("-", "").replace(" ", "")
+
+    # Mensaje
+                mensaje = f"""Hola {nombre}, te saluda Chem-Dry 👋
+
+Solo para darte seguimiento a tu último servicio.
+
+¿Te gustaría agendar otra limpieza o mantenimiento?
+
+Quedamos atentos 😊"""
+
+    # Codificar mensaje para URL
+                mensaje_encoded = urllib.parse.quote(mensaje)
+
+    # Crear link de WhatsApp
+                whatsapp_url = f"https://wa.me/52{telefono}?text={mensaje_encoded}"
+
+    # Botón
+                st.link_button("Enviar mensaje por WhatsApp", whatsapp_url)
 
     # ── COMENTARIOS ──
     elif pagina == "Comentarios":
