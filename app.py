@@ -292,7 +292,7 @@ if df is not None and not df.empty:
         año_origen = st.selectbox("Año:", años_sin_2026)
         df_o = df[df["Año"] == año_origen].copy()
 
-    # 🔥 LIMPIEZA
+        # 🔥 LIMPIEZA
         df_o["Origen"] = (
             df_o["Origen"]
             .astype(str)
@@ -300,7 +300,7 @@ if df is not None and not df.empty:
             .str.lower()
         )
 
-    # 🔥 NORMALIZAR
+        # 🔥 NORMALIZAR
         df_o["Origen"] = df_o["Origen"].replace({
             "int": "Internet",
             "internet": "Internet",
@@ -319,24 +319,53 @@ if df is not None and not df.empty:
 
         df_o["Origen"] = df_o["Origen"].replace(["", "nan"], "Sin especificar")
 
-    # 🔥 GRÁFICA
+        # 🔥 GRÁFICA
         origen = df_o["Origen"].value_counts().reset_index()
         origen.columns = ["Canal", "Clientes"]
 
         st.bar_chart(origen.set_index("Canal"))
         st.dataframe(origen, use_container_width=True)
 
-    # ─────────────────────────────
-    # ➕ AGREGAR CLIENTE (REAL)
-    # ─────────────────────────────
+        # ─────────────────────────────
+        # 🧠 HISTORIAL DE CLIENTES (PRO)
+        # ─────────────────────────────
+        st.markdown("### 🧠 Historial de clientes")
+
+        df_hist = df.copy()
+        df_hist["Monto"] = pd.to_numeric(df_hist["Monto"], errors="coerce")
+        df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors="coerce")
+
+        historial = df_hist.groupby("Nombre").agg(
+            Total_Gastado=("Monto", "sum"),
+            Servicios=("Monto", "count"),
+            Ultima_Visita=("Fecha", "max"),
+            Ticket_Promedio=("Monto", "mean")
+        ).reset_index()
+
+        historial = historial.sort_values(by="Total_Gastado", ascending=False)
+
+        # 🔍 BUSCADOR
+        cliente_buscar = st.text_input("Buscar cliente")
+
+        if cliente_buscar:
+            historial = historial[
+                historial["Nombre"].str.contains(cliente_buscar, case=False, na=False)
+            ]
+
+        st.dataframe(historial, use_container_width=True)
+
+        # ─────────────────────────────
+        # ➕ AGREGAR CLIENTE
+        # ─────────────────────────────
         st.markdown("### ➕ Agregar nuevo cliente")
         st.markdown("### 📂 Seleccionar destino")
 
         año_destino = st.selectbox(
-        "Guardar cliente en el año:",
-        list(SHEET_IDS.keys()),
-        index=len(SHEET_IDS)-1  # default último (2026)
+            "Guardar cliente en el año:",
+            list(SHEET_IDS.keys()),
+            index=len(SHEET_IDS)-1
         )
+
         with st.form("nuevo_cliente"):
             nombre = st.text_input("Nombre")
             telefono = st.text_input("Teléfono")
@@ -355,8 +384,8 @@ if df is not None and not df.empty:
                     worksheet = sh.get_worksheet(0)
 
                     nueva_fila = [
-                        "",  # Folio sistema
-                        "",  # Folio interno
+                        "",
+                        "",
                         fecha.strftime("%d/%m/%Y"),
                         nombre,
                         telefono,
@@ -364,7 +393,7 @@ if df is not None and not df.empty:
                         "Manual",
                         monto,
                         servicio,
-                        "", "", "", ""  # columnas extra
+                        "", "", "", ""
                     ]
 
                     worksheet.append_row(nueva_fila)
@@ -376,9 +405,9 @@ if df is not None and not df.empty:
                 except Exception as e:
                     st.error(f"Error al guardar: {e}")
 
-    # ─────────────────────────────
-    # ❌ ELIMINAR CLIENTE (SELECTIVO)
-    # ─────────────────────────────
+        # ─────────────────────────────
+        # ❌ ELIMINAR CLIENTE
+        # ─────────────────────────────
         st.markdown("### ❌ Eliminar cliente")
 
         nombres_clientes = df_o["Nombre"].dropna().unique().tolist()
@@ -393,12 +422,11 @@ if df is not None and not df.empty:
                 worksheet = sh.get_worksheet(0)
 
                 data = worksheet.get_all_values()
-
                 fila_a_borrar = None
 
                 for i, row in enumerate(data):
                     if len(row) > 3 and row[3] == cliente_eliminar:
-                        fila_a_borrar = i + 1  # Sheets empieza en 1
+                        fila_a_borrar = i + 1
                         break
 
                 if fila_a_borrar:
@@ -411,29 +439,29 @@ if df is not None and not df.empty:
 
             except Exception as e:
                 st.error(f"Error eliminando: {e}")
-    # ── SERVICIOS ──
-    elif pagina == "Servicios":
-        st.title("Servicios más vendidos")
-        año_serv = st.selectbox("Año:", años_sin_2026)
-        df_s = df[df["Año"] == año_serv].copy()
+        # ── SERVICIOS ──
+        elif pagina == "Servicios":
+            st.title("Servicios más vendidos")
+            año_serv = st.selectbox("Año:", años_sin_2026)
+            df_s = df[df["Año"] == año_serv].copy()
 
-        def categorizar(servicio):
-            if pd.isna(servicio): return "Sin especificar"
-            s = str(servicio).lower()
-            if "alfombra" in s: return "Alfombra"
-            if "sala" in s: return "Sala"
-            if "colchón" in s or "colchon" in s: return "Colchon"
-            if "tapete" in s: return "Tapete"
-            if "silla" in s: return "Sillas"
-            if "auto" in s or "interior" in s: return "Interior auto"
-            if "futón" in s or "futon" in s: return "Futon"
-            return "Otro"
+            def categorizar(servicio):
+                if pd.isna(servicio): return "Sin especificar"
+                s = str(servicio).lower()
+                if "alfombra" in s: return "Alfombra"
+                if "sala" in s: return "Sala"
+                if "colchón" in s or "colchon" in s: return "Colchon"
+                if "tapete" in s: return "Tapete"
+                if "silla" in s: return "Sillas"
+                if "auto" in s or "interior" in s: return "Interior auto"
+                if "futón" in s or "futon" in s: return "Futon"
+                return "Otro"
 
-        df_s["Categoria"] = df_s["Servicio"].apply(categorizar)
-        cats = df_s["Categoria"].value_counts().reset_index()
-        cats.columns = ["Categoria", "Cantidad"]
-        st.bar_chart(cats.set_index("Categoria"))
-        st.dataframe(cats, use_container_width=True)
+            df_s["Categoria"] = df_s["Servicio"].apply(categorizar)
+            cats = df_s["Categoria"].value_counts().reset_index()
+            cats.columns = ["Categoria", "Cantidad"]
+            st.bar_chart(cats.set_index("Categoria"))
+            st.dataframe(cats, use_container_width=True)
 
     # ── FOLLOW UP ──
     elif pagina == "Follow Up":
