@@ -316,7 +316,13 @@ if df is not None and not df.empty:
     # ➕ AGREGAR CLIENTE (REAL)
     # ─────────────────────────────
         st.markdown("### ➕ Agregar nuevo cliente")
+        st.markdown("### 📂 Seleccionar destino")
 
+        año_destino = st.selectbox(
+        "Guardar cliente en el año:",
+        list(SHEET_IDS.keys()),
+        index=len(SHEET_IDS)-1  # default último (2026)
+        )
         with st.form("nuevo_cliente"):
             nombre = st.text_input("Nombre")
             telefono = st.text_input("Teléfono")
@@ -330,7 +336,7 @@ if df is not None and not df.empty:
             if submitted:
                 try:
                     client = get_gspread_client()
-                    sheet_id = SHEET_IDS[fecha.year]
+                    sheet_id = SHEET_IDS[año_destino]
                     sh = client.open_by_key(sheet_id)
                     worksheet = sh.get_worksheet(0)
 
