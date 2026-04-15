@@ -503,18 +503,74 @@ Quedamos atentos 😊"""
 
     # Botón
                 st.link_button("Enviar mensaje por WhatsApp", whatsapp_url)
+    # AGENDA
     elif pagina == "Agenda":
         st.title("📅 Agenda de Servicios")
 
         df_a = df.copy()
-
-        # Asegurar formato fecha
         df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce")
 
-        # Selector de fecha
+        # ─────────────────────────────
+        # ➕ AGENDAR SERVICIO
+        # ─────────────────────────────
+        st.markdown("### ➕ Agendar nuevo servicio")
+
+        clientes_existentes = df_a["Nombre"].dropna().unique().tolist()
+
+        with st.form("agendar_servicio"):
+            cliente_sel = st.selectbox("Cliente existente (opcional)", [""] + clientes_existentes)
+
+            nombre = st.text_input("Nombre del cliente", value=cliente_sel)
+            telefono = st.text_input("Teléfono")
+            direccion = st.text_input("Dirección")
+            servicio = st.text_input("Servicio")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                fecha = st.date_input("Fecha", datetime.now())
+            with col2:
+                monto = st.number_input("Monto", min_value=0)
+
+            submitted = st.form_submit_button("Agendar")
+
+            if submitted:
+                try:
+                    client = get_gspread_client()
+                    sheet_id = SHEET_IDS[fecha.year]
+                    sh = client.open_by_key(sheet_id)
+                    worksheet = sh.get_worksheet(0)
+
+                    folio = str(int(datetime.now().timestamp()))
+
+                    nueva_fila = [
+                        folio,
+                        "",
+                        fecha.strftime("%d/%m/%Y"),
+                        nombre,
+                        telefono,
+                        direccion,
+                        "Agenda",
+                        monto,
+                        servicio,
+                        "", "", "", ""
+                    ]
+
+                    worksheet.append_row(nueva_fila)
+
+                    st.success("✅ Servicio agendado correctamente")
+                    st.cache_data.clear()
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"Error al agendar: {e}")
+
+        st.markdown("---")
+
+        # ─────────────────────────────
+        # 📅 VER AGENDA
+        # ─────────────────────────────
         fecha_sel = st.date_input("Selecciona una fecha", datetime.now())
 
-        # Filtrar por día
         df_dia = df_a[df_a["Fecha"].dt.date == fecha_sel]
 
         st.metric("Servicios ese día", len(df_dia))
@@ -531,17 +587,17 @@ Quedamos atentos 😊"""
                     **🧼 Servicio:** {row.get('Servicio','')}  
                     """)
 
-                # BOTÓN WHATSAPP
+                    # 🔥 BOTÓN WHATSAPP
                     tel = str(row.get("Tel","")).replace("-", "").replace(" ", "")
                     if tel:
                         tel = "52" + tel
 
                         mensaje = f"Hola {row.get('Nombre','')}, confirmamos tu servicio Chem-Dry para hoy."
-
                         url = f"https://wa.me/{tel}?text={mensaje.replace(' ', '%20')}"
-                    st.markdown(f"[💬 Enviar WhatsApp]({url})")
 
-                st.markdown("---")
+                        st.markdown(f"[💬 Enviar WhatsApp]({url})")
+
+                    st.markdown("---")
 
     # ── COMENTARIOS ──
     elif pagina == "Comentarios":
