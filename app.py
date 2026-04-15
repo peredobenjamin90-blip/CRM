@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
 from config import USUARIOS
+import uuid
 
 st.set_page_config(
     page_title="Chem-Dry Dashboard",
@@ -81,6 +82,31 @@ def cargar_datos():
     if not dfs:
         return pd.DataFrame()
     return pd.concat(dfs, ignore_index=True)
+
+
+# 🔥 NUEVA FUNCIÓN (AGREGAR CLIENTES)
+def agregar_a_sheets(data):
+    client = get_gspread_client()
+    sheet_id = SHEET_IDS[data["Año"].iloc[0]]
+    sh = client.open_by_key(sheet_id)
+    worksheet = sh.get_worksheet(0)
+
+    # 🔥 generar folio único (timestamp)
+    folio = str(int(datetime.now().timestamp()))
+
+    worksheet.append_row([
+        folio,                      # Folio sistema
+        "",                         # Folio interno
+        data["Fecha"].iloc[0],      # Fecha
+        data["Nombre"].iloc[0],     # Nombre
+        data["Tel"].iloc[0],        # Tel
+        "",                         # Dirección
+        data["Origen"].iloc[0],     # Origen
+        data["Monto"].iloc[0],      # Monto
+        data["Servicio"].iloc[0],   # Servicio
+        "",                         # Comentarios
+        "", "", ""                  # 90 días, 6 meses, 1 año
+    ])
 
 # ── LOGIN ──
 def login():
@@ -247,45 +273,124 @@ if df is not None and not df.empty:
 
     # ── CLIENTES ──
     elif pagina == "Clientes":
-        st.title("Origen de Clientes")
-        año_origen = st.selectbox("Año:", años_sin_2026)
+    st.title("Origen de Clientes")
 
-        df_o = df[df["Año"] == año_origen].copy()
+    año_origen = st.selectbox("Año:", años_sin_2026)
+    df_o = df[df["Año"] == año_origen].copy()
 
-    # 🔥 LIMPIEZA DE DATOS
-        df_o["Origen"] = (
-            df_o["Origen"]
-            .astype(str)
-            .str.strip()
-            .str.lower()
-        )
+    # 🔥 LIMPIEZA
+    df_o["Origen"] = (
+        df_o["Origen"]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
 
-    # 🔥 NORMALIZAR NOMBRES
-        df_o["Origen"] = df_o["Origen"].replace({
-            "int": "Internet",
-            "internet": "Internet",
-            "rep": "Repetición",
-            "repeticion": "Repetición",
-            "rec": "Recomendación",
-            "recomendacion": "Recomendación",
-            "ref": "Recomendación",
-            "face": "Facebook",
-            "amigo": "Amigo",
-            "amigos": "Amigo",
-            "club": "Club",
-            "primo": "Primo",
-            "maristas": "Maristas"
-        })
+    # 🔥 NORMALIZAR
+    df_o["Origen"] = df_o["Origen"].replace({
+        "int": "Internet",
+        "internet": "Internet",
+        "rep": "Repetición",
+        "repeticion": "Repetición",
+        "rec": "Recomendación",
+        "recomendacion": "Recomendación",
+        "ref": "Recomendación",
+        "face": "Facebook",
+        "amigo": "Amigo",
+        "amigos": "Amigo",
+        "club": "Club",
+        "primo": "Primo",
+        "maristas": "Maristas"
+    })
 
-    # 🔥 VALORES VACÍOS
-        df_o["Origen"] = df_o["Origen"].replace(["", "nan"], "Sin especificar")
+    df_o["Origen"] = df_o["Origen"].replace(["", "nan"], "Sin especificar")
 
-        origen = df_o["Origen"].value_counts().reset_index()
-        origen.columns = ["Canal", "Clientes"]
+    # 🔥 GRÁFICA
+    origen = df_o["Origen"].value_counts().reset_index()
+    origen.columns = ["Canal", "Clientes"]
 
-        st.bar_chart(origen.set_index("Canal"))
-        st.dataframe(origen, use_container_width=True)
+    st.bar_chart(origen.set_index("Canal"))
+    st.dataframe(origen, use_container_width=True)
 
+    # ─────────────────────────────
+    # ➕ AGREGAR CLIENTE (REAL)
+    # ─────────────────────────────
+    st.markdown("### ➕ Agregar nuevo cliente")
+
+    with st.form("nuevo_cliente"):
+        nombre = st.text_input("Nombre")
+        telefono = st.text_input("Teléfono")
+        direccion = st.text_input("Dirección")
+        servicio = st.text_input("Servicio")
+        fecha = st.date_input("Fecha del servicio")
+        monto = st.number_input("Monto", min_value=0)
+
+        submitted = st.form_submit_button("Guardar cliente")
+
+        if submitted:
+            try:
+                client = get_gspread_client()
+                sheet_id = SHEET_IDS[fecha.year]
+                sh = client.open_by_key(sheet_id)
+                worksheet = sh.get_worksheet(0)
+
+                nueva_fila = [
+                    "",  # Folio sistema
+                    "",  # Folio interno
+                    fecha.strftime("%d/%m/%Y"),
+                    nombre,
+                    telefono,
+                    direccion,
+                    "Manual",
+                    monto,
+                    servicio,
+                    "", "", "", ""  # columnas extra
+                ]
+
+                worksheet.append_row(nueva_fila)
+
+                st.success("✅ Cliente agregado correctamente")
+                st.cache_data.clear()
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"Error al guardar: {e}")
+
+    # ─────────────────────────────
+    # ❌ ELIMINAR CLIENTE (SELECTIVO)
+    # ─────────────────────────────
+    st.markdown("### ❌ Eliminar cliente")
+
+    nombres_clientes = df_o["Nombre"].dropna().unique().tolist()
+
+    cliente_eliminar = st.selectbox("Selecciona cliente:", nombres_clientes)
+
+    if st.button("Eliminar cliente"):
+        try:
+            client = get_gspread_client()
+            sheet_id = SHEET_IDS[año_origen]
+            sh = client.open_by_key(sheet_id)
+            worksheet = sh.get_worksheet(0)
+
+            data = worksheet.get_all_values()
+
+            fila_a_borrar = None
+
+            for i, row in enumerate(data):
+                if len(row) > 3 and row[3] == cliente_eliminar:
+                    fila_a_borrar = i + 1  # Sheets empieza en 1
+                    break
+
+            if fila_a_borrar:
+                worksheet.delete_rows(fila_a_borrar)
+                st.success(f"✅ Cliente '{cliente_eliminar}' eliminado")
+                st.cache_data.clear()
+                st.rerun()
+            else:
+                st.warning("No se encontró el cliente en el Sheet")
+
+        except Exception as e:
+            st.error(f"Error eliminando: {e}")
     # ── SERVICIOS ──
     elif pagina == "Servicios":
         st.title("Servicios más vendidos")
