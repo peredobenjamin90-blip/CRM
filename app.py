@@ -489,6 +489,45 @@ Quedamos atentos 😊"""
 
     # Botón
                 st.link_button("Enviar mensaje por WhatsApp", whatsapp_url)
+    elif pagina == "Agenda":
+        st.title("📅 Agenda de Servicios")
+
+        df_a = df.copy()
+
+        # Asegurar formato fecha
+        df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce")
+
+        # Selector de fecha
+        fecha_sel = st.date_input("Selecciona una fecha", datetime.now())
+
+        # Filtrar por día
+        df_dia = df_a[df_a["Fecha"].dt.date == fecha_sel]
+
+        st.metric("Servicios ese día", len(df_dia))
+
+        if df_dia.empty:
+            st.info("No hay servicios agendados")
+        else:
+            for _, row in df_dia.iterrows():
+                with st.container():
+                    st.markdown(f"""
+                    **👤 Cliente:** {row.get('Nombre','')}  
+                    **📞 Tel:** {row.get('Tel','')}  
+                    **📍 Dirección:** {row.get('Dirección','')}  
+                    **🧼 Servicio:** {row.get('Servicio','')}  
+                    """)
+
+                # BOTÓN WHATSAPP
+                    tel = str(row.get("Tel","")).replace("-", "").replace(" ", "")
+                    if tel:
+                        tel = "52" + tel
+
+                        mensaje = f"Hola {row.get('Nombre','')}, confirmamos tu servicio Chem-Dry para hoy."
+
+                        url = f"https://wa.me/{tel}?text={mensaje.replace(' ', '%20')}"
+                    st.markdown(f"[💬 Enviar WhatsApp]({url})")
+
+                st.markdown("---")
 
     # ── COMENTARIOS ──
     elif pagina == "Comentarios":
