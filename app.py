@@ -689,6 +689,64 @@ Quedamos atentos 😊"""
 
         df_a = df.copy()
         df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce")
+        df_a["Monto"] = pd.to_numeric(df_a["Monto"], errors="coerce")
+
+        # ─────────────────────────────
+        # 💰 INGRESOS POR DÍA
+        # ─────────────────────────────
+        ingresos_dia = df_a.groupby(df_a["Fecha"].dt.date)["Monto"].sum().reset_index()
+        ingresos_dia.columns = ["Fecha", "Ingresos"]
+
+        st.markdown("### 💰 Ingresos por día")
+        st.line_chart(ingresos_dia.set_index("Fecha"))
+
+        # ─────────────────────────────
+        # 📅 SELECCIÓN DE FECHA
+        # ─────────────────────────────
+        fecha_sel = st.date_input("Selecciona una fecha", datetime.now(), key="agenda_fecha")
+
+        df_dia = df_a[df_a["Fecha"].dt.date == fecha_sel]
+
+        # ─────────────────────────────
+        # 📊 MÉTRICAS DEL DÍA
+        # ─────────────────────────────
+        total_dia = df_dia["Monto"].sum()
+
+        col1, col2 = st.columns(2)
+        col1.metric("Servicios ese día", len(df_dia))
+        col2.metric("Ingresos del día", f"${total_dia:,.0f}")
+
+        st.markdown("---")
+
+        # ─────────────────────────────
+        # 📋 SERVICIOS DEL DÍA
+        # ─────────────────────────────
+        if df_dia.empty:
+            st.info("No hay servicios agendados")
+        else:
+            for _, row in df_dia.iterrows():
+                with st.container():
+                    st.markdown(f"""
+                    **👤 Cliente:** {row.get('Nombre','')}  
+                    **📞 Tel:** {row.get('Tel','')}  
+                    **📍 Dirección:** {row.get('Dirección','')}  
+                    **🧼 Servicio:** {row.get('Servicio','')}  
+                    **💰 Monto:** ${row.get('Monto',0):,.0f}
+                    """)
+
+                    # 🔥 BOTÓN WHATSAPP
+                    tel = str(row.get("Tel","")).replace("-", "").replace(" ", "")
+
+                    if tel:
+                        tel = "52" + tel
+                        mensaje = f"Hola {row.get('Nombre','')}, confirmamos tu servicio Chem-Dry para hoy."
+
+                        url = f"https://wa.me/{tel}?text={mensaje.replace(' ', '%20')}"
+                        st.markdown(f"[💬 Enviar WhatsApp]({url})")
+                    else:
+                        st.warning("Cliente sin teléfono")
+
+                    st.markdown("---")
 
         # ─────────────────────────────
         # ➕ AGENDAR SERVICIO
