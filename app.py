@@ -335,6 +335,7 @@ if df is not None and not df.empty:
         df_hist["Monto"] = pd.to_numeric(df_hist["Monto"], errors="coerce")
         df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors="coerce")
 
+        # 🔥 AGRUPAR CLIENTES
         historial = df_hist.groupby("Nombre").agg(
             Total_Gastado=("Monto", "sum"),
             Servicios=("Monto", "count"),
@@ -343,6 +344,39 @@ if df is not None and not df.empty:
         ).reset_index()
 
         historial = historial.sort_values(by="Total_Gastado", ascending=False)
+
+        # 🔍 BUSCADOR (BIEN PUESTO)
+        cliente_buscar = st.text_input(
+            "🔍 Buscar cliente",
+            key=f"buscador_historial_{año_origen}"
+        )
+
+        if cliente_buscar:
+            historial = historial[
+                historial["Nombre"].str.contains(cliente_buscar, case=False, na=False)
+            ]
+
+        # 🔥 FORMATO
+        historial["Ultima_Visita"] = historial["Ultima_Visita"].dt.strftime("%d/%m/%Y")
+
+        # 🔥 TOP CLIENTES (VISUAL PRO)
+        st.markdown("### 🏆 Top clientes")
+
+        top_clientes = historial.head(10)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.metric("💰 Mejor cliente", top_clientes.iloc[0]["Nombre"] if not top_clientes.empty else "-")
+
+        with col2:
+            st.metric(
+                "💵 Mayor gasto",
+                f"${top_clientes.iloc[0]['Total_Gastado']:,.0f}" if not top_clientes.empty else "$0"
+            )
+
+# 🔥 TABLA
+        st.dataframe(historial, use_container_width=True)
 
         # PERFIL DEL CLIENTE A DETALLE
         st.markdown("### 👤 Perfil del cliente")
@@ -448,18 +482,7 @@ if df is not None and not df.empty:
                 url = f"https://wa.me/{tel}?text={mensaje.replace(' ', '%20')}"
                 
                 st.markdown(f"[💬 Contactar a {row['Nombre']} (${row['Total_Gastado']:,.0f})]({url})")
-                # 🔍 BUSCADOR
-                cliente_buscar = st.text_input(
-                    "Buscar cliente",
-                    key=f"buscador_historial_{año_origen}"
-                )
-
-                if cliente_buscar:
-                    historial = historial[
-                        historial["Nombre"].str.contains(cliente_buscar, case=False, na=False)
-                    ]
-
-                st.dataframe(historial, use_container_width=True)
+                
 
         # ─────────────────────────────
         # ➕ AGREGAR CLIENTE
