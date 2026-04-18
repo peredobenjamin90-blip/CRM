@@ -654,82 +654,92 @@ elif pagina == "Clientes":
             except Exception as e:
                 st.error(f"Error eliminando: {e}")
         # ── SERVICIOS ──
-        elif pagina == "Servicios":
-            st.title("Servicios más vendidos")
-            año_serv = st.selectbox("Año:", años_sin_2026)
-            df_s = df[df["Año"] == año_serv].copy()
+elif pagina == "Servicios":
+    st.title("Servicios más vendidos")
+    año_serv = st.selectbox("Año:", años_sin_2026)
+    df_s = df[df["Año"] == año_serv].copy()
 
-            def categorizar(servicio):
-                if pd.isna(servicio): return "Sin especificar"
-                s = str(servicio).lower()
-                if "alfombra" in s: return "Alfombra"
-                if "sala" in s: return "Sala"
-                if "colchón" in s or "colchon" in s: return "Colchon"
-                if "tapete" in s: return "Tapete"
-                if "silla" in s: return "Sillas"
-                if "auto" in s or "interior" in s: return "Interior auto"
-                if "futón" in s or "futon" in s: return "Futon"
-                return "Otro"
+    def categorizar(servicio):
+            if pd.isna(servicio): return "Sin especificar"
+            s = str(servicio).lower()
+            if "alfombra" in s: return "Alfombra"
+            if "sala" in s: return "Sala"
+            if "colchón" in s or "colchon" in s: return "Colchon"
+            if "tapete" in s: return "Tapete"
+            if "silla" in s: return "Sillas"
+            if "auto" in s or "interior" in s: return "Interior auto"
+            if "futón" in s or "futon" in s: return "Futon"
+            return "Otro"
 
-            df_s["Categoria"] = df_s["Servicio"].apply(categorizar)
-            cats = df_s["Categoria"].value_counts().reset_index()
-            cats.columns = ["Categoria", "Cantidad"]
-            st.bar_chart(cats.set_index("Categoria"))
-            st.dataframe(cats, use_container_width=True)
+    df_s["Categoria"] = df_s["Servicio"].apply(categorizar)
+    cats = df_s["Categoria"].value_counts().reset_index()
+    cats.columns = ["Categoria", "Cantidad"]
+    st.bar_chart(cats.set_index("Categoria"))
+    st.dataframe(cats, use_container_width=True)
 
     # ── FOLLOW UP ──
-    elif pagina == "Follow Up":
-        st.title("Clientes para Follow Up")
+elif pagina == "Follow Up":
+    st.title("Clientes para Follow Up")
 
-        ultimo = df.groupby("Nombre").agg(Fecha=("Fecha","max")).reset_index()
-        ultimo.columns = ["Nombre", "Ultimo servicio"]
-        tels = df[["Nombre","Tel"]].drop_duplicates(subset="Nombre")
-        comentarios = df.sort_values("Fecha").drop_duplicates(subset="Nombre", keep="last")[
-            ["Nombre","Comentarios con llamada posterior a venta"]
+    ultimo = df.groupby("Nombre").agg(Fecha=("Fecha","max")).reset_index()
+    ultimo.columns = ["Nombre", "Ultimo servicio"]
+
+    tels = df[["Nombre","Tel"]].drop_duplicates(subset="Nombre")
+
+    comentarios = df.sort_values("Fecha").drop_duplicates(subset="Nombre", keep="last")[
+        ["Nombre","Comentarios con llamada posterior a venta"]
+    ]
+
+    ultimo = ultimo.merge(tels, on="Nombre", how="left")
+    ultimo = ultimo.merge(comentarios, on="Nombre", how="left")
+
+    ultimo.columns = ["Nombre", "Ultimo servicio", "Tel", "Comentario"]
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        meses = st.slider("Sin servicio hace más de X meses:", 1, 24, 6)
+
+    with col2:
+        mes_filtro = st.selectbox(
+            "Mes del último servicio:",
+            ["Todos","Enero","Febrero","Marzo","Abril","Mayo","Junio",
+             "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+        )
+
+    fecha_limite = datetime.now() - timedelta(days=meses * 30)
+    sin_servicio = ultimo[ultimo["Ultimo servicio"] < fecha_limite].copy()
+
+    meses_dict = {
+        "Enero":1,"Febrero":2,"Marzo":3,"Abril":4,"Mayo":5,"Junio":6,
+        "Julio":7,"Agosto":8,"Septiembre":9,"Octubre":10,"Noviembre":11,"Diciembre":12
+    }
+
+    if mes_filtro != "Todos":
+        sin_servicio = sin_servicio[
+            sin_servicio["Ultimo servicio"].dt.month == meses_dict[mes_filtro]
         ]
-        ultimo = ultimo.merge(tels, on="Nombre", how="left")
-        ultimo = ultimo.merge(comentarios, on="Nombre", how="left")
-        ultimo.columns = ["Nombre", "Ultimo servicio", "Tel", "Comentario"]
 
-        col1, col2 = st.columns(2)
-        with col1:
-            meses = st.slider("Sin servicio hace más de X meses:", 1, 24, 6)
-        with col2:
-            mes_filtro = st.selectbox("Mes del último servicio:",
-                ["Todos","Enero","Febrero","Marzo","Abril","Mayo","Junio",
-                 "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"])
+    sin_servicio = sin_servicio.sort_values("Ultimo servicio")
 
-        fecha_limite = datetime.now() - timedelta(days=meses*30)
-        sin_servicio = ultimo[ultimo["Ultimo servicio"] < fecha_limite].copy()
+    st.metric("Clientes a contactar", len(sin_servicio))
+    st.dataframe(sin_servicio, use_container_width=True)
 
-        meses_dict = {"Enero":1,"Febrero":2,"Marzo":3,"Abril":4,"Mayo":5,"Junio":6,
-                      "Julio":7,"Agosto":8,"Septiembre":9,"Octubre":10,"Noviembre":11,"Diciembre":12}
+    import urllib.parse
 
-        if mes_filtro != "Todos":
-            sin_servicio = sin_servicio[
-                sin_servicio["Ultimo servicio"].dt.month == meses_dict[mes_filtro]
-            ]
+    st.markdown("### Enviar mensaje por WhatsApp")
 
-        sin_servicio = sin_servicio.sort_values("Ultimo servicio")
-        st.metric("Clientes a contactar", len(sin_servicio))
-        st.dataframe(sin_servicio, use_container_width=True)
-        import urllib.parse
+    if not sin_servicio.empty:
 
-        st.markdown("### Enviar mensaje por WhatsApp")
+        cliente_sel = st.selectbox(
+            "Selecciona cliente:",
+            sin_servicio.apply(lambda x: f"{x['Nombre']} - {x['Tel']}", axis=1)
+        )
 
-        if not sin_servicio.empty:
-    # Selector de cliente (nombre + teléfono para evitar duplicados)
-                cliente_sel = st.selectbox(
-                    "Selecciona cliente:",
-                    sin_servicio.apply(lambda x: f"{x['Nombre']} - {x['Tel']}", axis=1)
-    )
+        nombre = cliente_sel.split(" - ")[0]
+        telefono = cliente_sel.split(" - ")[1].replace("-", "").replace(" ", "")
 
-    # Separar datos
-                nombre = cliente_sel.split(" - ")[0]
-                telefono = cliente_sel.split(" - ")[1].replace("-", "").replace(" ", "")
-
-    # Mensaje
-                mensaje = f"""Hola {nombre}, te saluda Chem-Dry 👋
+        mensaje = f"""Hola {nombre}, te saluda Chem-Dry 👋
 
 Solo para darte seguimiento a tu último servicio.
 
@@ -737,14 +747,11 @@ Solo para darte seguimiento a tu último servicio.
 
 Quedamos atentos 😊"""
 
-    # Codificar mensaje para URL
-                mensaje_encoded = urllib.parse.quote(mensaje)
+        mensaje_encoded = urllib.parse.quote(mensaje)
 
-    # Crear link de WhatsApp
-                whatsapp_url = f"https://wa.me/52{telefono}?text={mensaje_encoded}"
+        whatsapp_url = f"https://wa.me/52{telefono}?text={mensaje_encoded}"
 
-    # Botón
-                st.link_button("Enviar mensaje por WhatsApp", whatsapp_url)
+        st.link_button("Enviar mensaje por WhatsApp", whatsapp_url)
     # AGENDA
     elif pagina == "Agenda":
         st.title("📅 Agenda de Servicios")
