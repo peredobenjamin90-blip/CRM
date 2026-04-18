@@ -587,10 +587,19 @@ with st.sidebar:
         st.markdown("### ➕ Agregar nuevo cliente")
         st.markdown("### 📂 Seleccionar destino")
 
+        sheets = st.session_state.get("SHEET_IDS", {})
+
+        años_disponibles = list(sheets.keys())
+
+        if not años_disponibles:
+            años_disponibles = [datetime.now().year]
+
+        index_default = len(años_disponibles) - 1
+
         año_destino = st.selectbox(
             "Guardar cliente en el año:",
-            list(st.session_state["SHEET_IDS"].keys()),
-            index=len(SHEET_IDS)-1
+            años_disponibles,
+            index=index_default
         )
 
         with st.form("nuevo_cliente"):
@@ -605,10 +614,18 @@ with st.sidebar:
 
             if submitted:
                 try:
+                    sheets = st.session_state.get("SHEET_IDS", {})
+                    sheet_id = sheets.get(año_destino)
+
+                    if not sheet_id:
+                        st.error("⚠️ No hay Google Sheet configurado para este año")
+                        st.stop()
+
                     client = get_gspread_client()
-                    sheet_id = SHEET_IDS[año_destino]
                     sh = client.open_by_key(sheet_id)
                     worksheet = sh.get_worksheet(0)
+
+        # 👇 aquí ya tu lógica de append_row
 
                     nueva_fila = [
                         "",
