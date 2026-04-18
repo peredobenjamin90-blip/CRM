@@ -60,10 +60,19 @@ def cargar_datos(sheet_ids):
     client = get_gspread_client()
     dfs = []
 
+    columnas_base = [
+        "Fecha", "Nombre", "Tel", "Dirección",
+        "Origen", "Monto", "Servicio",
+        "Comentarios con llamada posterior a venta"
+    ]
+
     for año, sheet_id in sheet_ids.items():
 
-        # 🔥 IGNORA AÑOS SIN SHEET
+        # 🔥 SI NO HAY SHEET → CREA DATA VACÍA
         if not sheet_id:
+            df_vacio = pd.DataFrame(columns=columnas_base)
+            df_vacio["Año"] = año
+            dfs.append(df_vacio)
             continue
 
         for intento in range(3):
@@ -74,7 +83,7 @@ def cargar_datos(sheet_ids):
                 df = pd.DataFrame(data)
 
                 if df.empty:
-                    break
+                    df = pd.DataFrame(columns=columnas_base)
 
                 df["Año"] = año
                 dfs.append(df)
@@ -86,11 +95,13 @@ def cargar_datos(sheet_ids):
                 if intento < 2:
                     time.sleep(2)
                 else:
-                    # 🔥 NO ROMPE LA APP
-                    st.warning(f"⚠️ Sheet {año} no disponible")
+                    # 🔥 SI FALLA → TAMBIÉN CREA VACÍO
+                    df_vacio = pd.DataFrame(columns=columnas_base)
+                    df_vacio["Año"] = año
+                    dfs.append(df_vacio)
 
     if not dfs:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=columnas_base + ["Año"])
 
     return pd.concat(dfs, ignore_index=True)
 
