@@ -254,7 +254,7 @@ with st.sidebar:
             st.session_state["pagina"] = "Resumen"
 
         for p in paginas:
-            if st.button(p, key=p, use_container_width=True):
+            if st.button(p, key=f"sidebar_{p}", use_container_width=True):
                 st.session_state["pagina"] = p
 
         st.markdown("---")
