@@ -244,32 +244,35 @@ with st.sidebar:
     pagina = st.session_state["pagina"]
 
     # ── SIDEBAR ──
-    with st.sidebar:
-        st.markdown(f"<h3 style='color:white'>{st.session_state['nombre']}</h3>", unsafe_allow_html=True)
-        st.markdown("---")
+    # ─────────────────────────────
+# 🔥 SIDEBAR (VERSIÓN PRO ESTABLE)
+# ─────────────────────────────
 
-        paginas = ["Resumen", "Ventas", "Clientes", "Servicios", "Follow Up", "Agenda", "Comentarios", "Cotizaciones"]
+    st.sidebar.markdown(f"<h3 style='color:white'>{st.session_state['nombre']}</h3>", unsafe_allow_html=True)
+    st.sidebar.markdown("---")
 
-        if "pagina" not in st.session_state:
-            st.session_state["pagina"] = "Resumen"
+    paginas = ["Resumen", "Ventas", "Clientes", "Servicios", "Follow Up", "Agenda", "Comentarios", "Cotizaciones"]
 
-        for p in paginas:
-            if st.button(p, key=f"sidebar_{p}", use_container_width=True):
-                st.session_state["pagina"] = p
+    if "pagina" not in st.session_state:
+        st.session_state["pagina"] = "Resumen"
 
-        st.markdown("---")
-        st.caption("Datos actualizados cada 5 min")
+    for p in paginas:
+        if st.sidebar.button(p, key=f"sidebar_{p}", use_container_width=True):
+            st.session_state["pagina"] = p
 
-        if st.button("Actualizar datos", key="sidebar_actualizar", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
+    st.sidebar.markdown("---")
+    st.sidebar.caption("Datos actualizados cada 5 min")
 
-        st.markdown("---")
+    if st.sidebar.button("Actualizar datos", key="sidebar_actualizar", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
 
-        if st.button("Cerrar sesión", key="sidebar_logout", use_container_width=True):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
+    st.sidebar.markdown("---")
+
+    if st.sidebar.button("Cerrar sesión", key="sidebar_logout", use_container_width=True):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
 
     pagina = st.session_state["pagina"]
 
