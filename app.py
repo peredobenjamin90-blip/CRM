@@ -273,21 +273,21 @@ if pagina == "Resumen":
             unsafe_allow_html=True
         )
     # ── VENTAS ──
-    elif pagina == "Ventas":
-        st.title("Análisis de Ventas")
+elif pagina == "Ventas":
+    st.title("Análisis de Ventas")
 
-        ventas_año = df[df["Año"].isin(años_sin_2026)].groupby("Año")["Monto"].sum().reset_index()
-        ventas_año.columns = ["Año", "Total"]
-        st.subheader("Ventas totales por año")
-        st.bar_chart(ventas_año.set_index("Año"))
+    ventas_año = df[df["Año"].isin(años_sin_2026)].groupby("Año")["Monto"].sum().reset_index()
+    ventas_año.columns = ["Año", "Total"]
+    st.subheader("Ventas totales por año")
+    st.bar_chart(ventas_año.set_index("Año"))
 
-        st.subheader("Comparación mensual")
-        años_sel = st.multiselect("Años:", años_sin_2026, default=años_sin_2026[-2:])
-        if años_sel:
-            df_f = df[df["Año"].isin(años_sel)]
-            pivot = df_f.groupby(["Año","Mes"])["Monto"].sum().reset_index()
-            pivot = pivot.pivot(index="Mes", columns="Año", values="Monto").fillna(0)
-            st.line_chart(pivot)
+    st.subheader("Comparación mensual")
+    años_sel = st.multiselect("Años:", años_sin_2026, default=años_sin_2026[-2:])
+    if años_sel:
+        df_f = df[df["Año"].isin(años_sel)]
+        pivot = df_f.groupby(["Año","Mes"])["Monto"].sum().reset_index()
+        pivot = pivot.pivot(index="Mes", columns="Año", values="Monto").fillna(0)
+        st.line_chart(pivot)
 
         st.subheader("Proyección 2026")
         mes_actual = datetime.now().month
