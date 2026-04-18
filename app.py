@@ -209,11 +209,7 @@ if not años_disponibles:
     años_disponibles = [datetime.now().year]
 
 años_sin_2026 = años_disponibles
-
-
-    # ── SIDEBAR ──
- 
-
+# ── SIDEBAR ──
 with st.sidebar:
     st.markdown(f"<h3 style='color:white'>{st.session_state['nombre']}</h3>", unsafe_allow_html=True)
     st.markdown("---")
@@ -241,34 +237,41 @@ with st.sidebar:
             del st.session_state[key]
         st.rerun()
 
-    pagina = st.session_state["pagina"]
+# 🔥 IMPORTANTE: ESTO VA FUERA DEL SIDEBAR
+pagina = st.session_state["pagina"]
 
     # ── RESUMEN ──
-    if pagina == "Resumen":
-        st.title("Dashboard Chem-Dry")
-        año_resumen = st.selectbox("Año:", años_sin_2026, index=len(años_sin_2026)-1)
-        df_r = df[df["Año"] == año_resumen]
+    # 🔥 IMPORTANTE: ESTO VA FUERA DEL SIDEBAR
+pagina = st.session_state["pagina"]
 
-        total_ventas = df_r["Monto"].sum()
-        total_clientes = df_r["Nombre"].nunique()
-        ticket_promedio = df_r["Monto"].mean()
-        total_servicios = len(df_r)
+# ── RESUMEN ──
+if pagina == "Resumen":
+    st.title("Dashboard Chem-Dry")
+    año_resumen = st.selectbox("Año:", años_sin_2026, index=len(años_sin_2026)-1)
+    df_r = df[df["Año"] == año_resumen]
 
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Ventas totales", f"${total_ventas:,.0f}")
-        col2.metric("Clientes únicos", f"{total_clientes:,}")
-        col3.metric("Ticket promedio", f"${ticket_promedio:,.0f}")
-        col4.metric("Servicios realizados", f"{total_servicios:,}")
+    total_ventas = df_r["Monto"].sum()
+    total_clientes = df_r["Nombre"].nunique()
+    ticket_promedio = df_r["Monto"].mean()
+    total_servicios = len(df_r)
 
-        if año_resumen > min(años_sin_2026):
-            df_ant = df[df["Año"] == año_resumen - 1]
-            ventas_ant = df_ant["Monto"].sum()
-            diferencia = total_ventas - ventas_ant
-            porcentaje = (diferencia / ventas_ant * 100) if ventas_ant > 0 else 0
-            color = "green" if diferencia > 0 else "red"
-            simbolo = "▲" if diferencia > 0 else "▼"
-            st.markdown(f"<p style='color:{color}; font-size:16px'>{simbolo} Comparado con {año_resumen-1}: ${abs(diferencia):,.0f} ({porcentaje:+.1f}%)</p>", unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Ventas totales", f"${total_ventas:,.0f}")
+    col2.metric("Clientes únicos", f"{total_clientes:,}")
+    col3.metric("Ticket promedio", f"${ticket_promedio:,.0f}")
+    col4.metric("Servicios realizados", f"{total_servicios:,}")
 
+    if año_resumen > min(años_sin_2026):
+        df_ant = df[df["Año"] == año_resumen - 1]
+        ventas_ant = df_ant["Monto"].sum()
+        diferencia = total_ventas - ventas_ant
+        porcentaje = (diferencia / ventas_ant * 100) if ventas_ant > 0 else 0
+        color = "green" if diferencia > 0 else "red"
+        simbolo = "▲" if diferencia > 0 else "▼"
+        st.markdown(
+            f"<p style='color:{color}; font-size:16px'>{simbolo} Comparado con {año_resumen-1}: ${abs(diferencia):,.0f} ({porcentaje:+.1f}%)</p>",
+            unsafe_allow_html=True
+        )
     # ── VENTAS ──
     elif pagina == "Ventas":
         st.title("Análisis de Ventas")
