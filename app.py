@@ -167,10 +167,31 @@ if "usuario" not in st.session_state:
 # ── CARGAR DATOS ──
 df = cargar_datos(st.session_state["SHEET_IDS"])
 
-if df is not None and not df.empty:
-    df.columns = df.columns.str.strip()
-    df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")
-    df["Monto"] = (
+# ─────────────────────────────
+# 🔥 FALLBACK PRO (SIN DATOS)
+# ─────────────────────────────
+if df is None or df.empty:
+    df = pd.DataFrame({
+        "Nombre": [""],
+        "Tel": [""],
+        "Fecha": [datetime.now()],
+        "Monto": [0],
+        "Servicio": [""],
+        "Origen": [""],
+        "Comentarios con llamada posterior a venta": [""],
+        "Año": [datetime.now().year]
+    })
+
+    st.warning("⚠️ No hay datos conectados aún. Puedes empezar a agregar clientes o conectar Google Sheets.")
+
+# ─────────────────────────────
+# 🔥 LIMPIEZA NORMAL (SIEMPRE CORRE)
+# ─────────────────────────────
+df.columns = df.columns.str.strip()
+
+df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")
+
+df["Monto"] = (
     df["Monto"]
     .astype(str)
     .str.replace("$", "", regex=False)
@@ -178,10 +199,49 @@ if df is not None and not df.empty:
     .str.strip()
 )
 
-    df["Monto"] = pd.to_numeric(df["Monto"], errors="coerce")
-    df["Mes"] = df["Fecha"].dt.month
-    años_disponibles = sorted(df["Año"].unique())
-    años_sin_2026 = años_disponibles
+df["Monto"] = pd.to_numeric(df["Monto"], errors="coerce")
+
+df["Mes"] = df["Fecha"].dt.month
+
+# ─────────────────────────────
+# 🔥 AÑOS DINÁMICOS (SIN CRASH)
+# ─────────────────────────────
+años_disponibles = sorted(df["Año"].dropna().unique())
+
+if not años_disponibles:
+    años_disponibles = [datetime.now().year]
+
+años_sin_2026 = años_disponibles
+
+# ── SIDEBAR ──
+with st.sidebar:
+    st.markdown(f"<h3 style='color:white'>{st.session_state['nombre']}</h3>", unsafe_allow_html=True)
+    st.markdown("---")
+
+    paginas = ["Resumen", "Ventas", "Clientes", "Servicios", "Follow Up", "Agenda", "Comentarios", "Cotizaciones"]
+
+    if "pagina" not in st.session_state:
+        st.session_state["pagina"] = "Resumen"
+
+    for p in paginas:
+        if st.button(p, key=p, use_container_width=True):
+            st.session_state["pagina"] = p
+
+    st.markdown("---")
+    st.caption("Datos actualizados cada 5 min")
+
+    if st.button("Actualizar datos", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
+    st.markdown("---")
+
+    if st.button("Cerrar sesión", use_container_width=True):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
+
+    pagina = st.session_state["pagina"]
 
     # ── SIDEBAR ──
     with st.sidebar:
