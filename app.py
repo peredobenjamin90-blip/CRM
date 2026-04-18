@@ -331,138 +331,138 @@ elif pagina == "Ventas":
         st.dataframe(pd.DataFrame(resumen_meses), use_container_width=True, hide_index=True)
 
     # ── CLIENTES ──
-    elif pagina == "Clientes":
-        st.title("Origen de Clientes")
+elif pagina == "Clientes":
+    st.title("Origen de Clientes")
 
-        año_origen = st.selectbox("Año:", años_sin_2026)
-        df_o = df[df["Año"] == año_origen].copy()
+    año_origen = st.selectbox("Año:", años_sin_2026)
+    df_o = df[df["Año"] == año_origen].copy()
 
         # 🔥 LIMPIEZA
-        df_o["Origen"] = (
-            df_o["Origen"]
-            .astype(str)
-            .str.strip()
-            .str.lower()
-        )
+    df_o["Origen"] = (
+        df_o["Origen"]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
 
         # 🔥 NORMALIZAR
-        df_o["Origen"] = df_o["Origen"].replace({
-            "int": "Internet",
-            "internet": "Internet",
-            "rep": "Repetición",
-            "repeticion": "Repetición",
-            "rec": "Recomendación",
-            "recomendacion": "Recomendación",
-            "ref": "Recomendación",
-            "face": "Facebook",
-            "amigo": "Amigo",
-            "amigos": "Amigo",
-            "club": "Club",
-            "primo": "Primo",
-            "maristas": "Maristas"
-        })
+    df_o["Origen"] = df_o["Origen"].replace({
+        "int": "Internet",
+        "internet": "Internet",
+        "rep": "Repetición",
+        "repeticion": "Repetición",
+        "rec": "Recomendación",
+        "recomendacion": "Recomendación",
+        "ref": "Recomendación",
+        "face": "Facebook",
+        "amigo": "Amigo",
+        "amigos": "Amigo",
+        "club": "Club",
+        "primo": "Primo",
+        "maristas": "Maristas"
+    })
 
-        df_o["Origen"] = df_o["Origen"].replace(["", "nan"], "Sin especificar")
+    df_o["Origen"] = df_o["Origen"].replace(["", "nan"], "Sin especificar")
 
-        # 🔥 GRÁFICA
-        origen = df_o["Origen"].value_counts().reset_index()
-        origen.columns = ["Canal", "Clientes"]
+    # 🔥 GRÁFICA
+    origen = df_o["Origen"].value_counts().reset_index()
+    origen.columns = ["Canal", "Clientes"]
 
-        st.bar_chart(origen.set_index("Canal"))
-        st.dataframe(origen, use_container_width=True)
+    st.bar_chart(origen.set_index("Canal"))
+    st.dataframe(origen, use_container_width=True)
 
-        # ─────────────────────────────
-        # 🧠 HISTORIAL DE CLIENTES (PRO)
-        # ─────────────────────────────
-        st.markdown("### 🧠 Historial de clientes")
+    # ─────────────────────────────
+    # 🧠 HISTORIAL DE CLIENTES (PRO)
+    # ─────────────────────────────
+    st.markdown("### 🧠 Historial de clientes")
 
-        df_hist = df.copy()
-        df_hist["Monto"] = pd.to_numeric(df_hist["Monto"], errors="coerce")
-        df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors="coerce")
+    df_hist = df.copy()
+    df_hist["Monto"] = pd.to_numeric(df_hist["Monto"], errors="coerce")
+    df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors="coerce")
 
-        # 🔥 AGRUPAR CLIENTES
-        historial = df_hist.groupby("Nombre").agg(
-            Total_Gastado=("Monto", "sum"),
-            Servicios=("Monto", "count"),
-            Ultima_Visita=("Fecha", "max"),
-            Ticket_Promedio=("Monto", "mean")
-        ).reset_index()
+    # 🔥 AGRUPAR CLIENTES
+    historial = df_hist.groupby("Nombre").agg(
+        Total_Gastado=("Monto", "sum"),
+        Servicios=("Monto", "count"),
+        Ultima_Visita=("Fecha", "max"),
+        Ticket_Promedio=("Monto", "mean")
+    ).reset_index()
 
-        historial = historial.sort_values(by="Total_Gastado", ascending=False)
+    historial = historial.sort_values(by="Total_Gastado", ascending=False)
 
-        # 🔍 BUSCADOR (BIEN PUESTO)
-        cliente_buscar = st.text_input(
-            "🔍 Buscar cliente",
-            key=f"buscador_historial_{año_origen}"
-        )
+    # 🔍 BUSCADOR (BIEN PUESTO)
+    cliente_buscar = st.text_input(
+        "🔍 Buscar cliente",
+        key=f"buscador_historial_{año_origen}"
+    )
 
-        if cliente_buscar:
-            historial = historial[
-                historial["Nombre"].str.contains(cliente_buscar, case=False, na=False)
-            ]
+    if cliente_buscar:
+        historial = historial[
+            historial["Nombre"].str.contains(cliente_buscar, case=False, na=False)
+        ]
 
         # 🔥 FORMATO
-        historial["Ultima_Visita"] = historial["Ultima_Visita"].dt.strftime("%d/%m/%Y")
+    historial["Ultima_Visita"] = historial["Ultima_Visita"].dt.strftime("%d/%m/%Y")
 
         # 🔥 TOP CLIENTES (VISUAL PRO)
-        st.markdown("### 🏆 Top clientes")
+    st.markdown("### 🏆 Top clientes")
 
-        top_clientes = historial.head(10)
+    top_clientes = historial.head(10)
 
-        col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2)
 
-        with col1:
-            st.metric("💰 Mejor cliente", top_clientes.iloc[0]["Nombre"] if not top_clientes.empty else "-")
+    with col1:
+        st.metric("💰 Mejor cliente", top_clientes.iloc[0]["Nombre"] if not top_clientes.empty else "-")
 
-        with col2:
-            st.metric(
-                "💵 Mayor gasto",
-                f"${top_clientes.iloc[0]['Total_Gastado']:,.0f}" if not top_clientes.empty else "$0"
-            )
+    with col2:
+        st.metric(
+            "💵 Mayor gasto",
+            f"${top_clientes.iloc[0]['Total_Gastado']:,.0f}" if not top_clientes.empty else "$0"
+        )
 
 # 🔥 TABLA
-        st.dataframe(historial, use_container_width=True)
+    st.dataframe(historial, use_container_width=True)
 
-        # PERFIL DEL CLIENTE A DETALLE
-        st.markdown("### 👤 Perfil del cliente")
+    # PERFIL DEL CLIENTE A DETALLE
+    st.markdown("### 👤 Perfil del cliente")
 
-        clientes_lista = historial["Nombre"].dropna().unique().tolist()
+    clientes_lista = historial["Nombre"].dropna().unique().tolist()
 
-        cliente_sel = st.selectbox("Selecciona un cliente", clientes_lista)
+    cliente_sel = st.selectbox("Selecciona un cliente", clientes_lista)
 
-        if cliente_sel:
-            df_cliente = df[df["Nombre"] == cliente_sel].copy()
+    if cliente_sel:
+        df_cliente = df[df["Nombre"] == cliente_sel].copy()
 
-            df_cliente["Fecha"] = pd.to_datetime(df_cliente["Fecha"], errors="coerce")
-            df_cliente["Monto"] = pd.to_numeric(df_cliente["Monto"], errors="coerce")
+        df_cliente["Fecha"] = pd.to_datetime(df_cliente["Fecha"], errors="coerce")
+        df_cliente["Monto"] = pd.to_numeric(df_cliente["Monto"], errors="coerce")
 
-            df_cliente = df_cliente.sort_values(by="Fecha", ascending=False)
+        df_cliente = df_cliente.sort_values(by="Fecha", ascending=False)
 
     # 🔥 MÉTRICAS
-            total = df_cliente["Monto"].sum()
-            visitas = len(df_cliente)
-            ultima = df_cliente["Fecha"].max()
-            promedio = df_cliente["Monto"].mean()
+        total = df_cliente["Monto"].sum()
+        visitas = len(df_cliente)
+        ultima = df_cliente["Fecha"].max()
+        promedio = df_cliente["Monto"].mean()
 
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Total gastado", f"${total:,.0f}")
-            col2.metric("Servicios", visitas)
-            col3.metric("Última visita", ultima.strftime("%d/%m/%Y") if pd.notnull(ultima) else "-")
-            col4.metric("Ticket promedio", f"${promedio:,.0f}")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total gastado", f"${total:,.0f}")
+        col2.metric("Servicios", visitas)
+        col3.metric("Última visita", ultima.strftime("%d/%m/%Y") if pd.notnull(ultima) else "-")
+        col4.metric("Ticket promedio", f"${promedio:,.0f}")
 
-            st.markdown("### 📋 Historial completo")
+        st.markdown("### 📋 Historial completo")
 
-            mostrar = df_cliente[[
-                "Fecha",
-                "Servicio",
-                "Monto",
-                "Origen",
-                "Comentarios con llamada posterior a venta"
-            ]].copy()
+        mostrar = df_cliente[[
+            "Fecha",
+            "Servicio",
+            "Monto",
+            "Origen",
+            "Comentarios con llamada posterior a venta"
+        ]].copy()
 
-            mostrar.columns = ["Fecha", "Servicio", "Monto", "Origen", "Comentarios"]
+        mostrar.columns = ["Fecha", "Servicio", "Monto", "Origen", "Comentarios"]
 
-            st.dataframe(mostrar, use_container_width=True)
+        st.dataframe(mostrar, use_container_width=True)
         # ─────────────────────────────
 # 🔴 CLIENTES PERDIDOS (PRO)
 # ─────────────────────────────
