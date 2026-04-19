@@ -165,8 +165,8 @@ def login():
                 st.session_state["sistema"] = USUARIOS[usuario]["sistema"]
                 st.session_state["SHEET_IDS"] = USUARIOS[usuario]["sheets"]
                 st.rerun()
-        else:
-            st.error("Usuario o contraseña incorrectos")
+            else:
+                st.error("Usuario o contraseña incorrectos")
             
 
 if "usuario" not in st.session_state:
