@@ -153,13 +153,14 @@ def login():
         """, unsafe_allow_html=True)
         if st.button("Entrar"):
             if usuario in USUARIOS and USUARIOS[usuario]["password"] == password:
+                st.session_state["usuario"] = usuario  # 🔥 FALTABA ESTO
                 st.session_state["empresa"] = USUARIOS[usuario]["empresa"]
                 st.session_state["sistema"] = USUARIOS[usuario]["sistema"]
-                st.session_state["nombre"] = USUARIOS[usuario]["nombre"]
-                st.session_state["SHEET_IDS"] = USUARIOS[usuario]["sheets"]  # 🔥 CLAVE
+                st.session_state["SHEET_IDS"] = USUARIOS[usuario]["sheets"]
                 st.rerun()
-            else:
-                st.error("Usuario o contraseña incorrectos")
+        else:
+            st.error("Usuario o contraseña incorrectos")
+            
 
 if "usuario" not in st.session_state:
     login()
@@ -212,7 +213,7 @@ if not años_disponibles:
 años_sin_2026 = años_disponibles
 # ── SIDEBAR ──
 with st.sidebar:
-    st.markdown(f"<h3 style='color:white'>{st.session_state['nombre']}</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='color:white'>{st.session_state['empresa']}</h3>", unsafe_allow_html=True)
     st.markdown("---")
 
     paginas = ["Resumen", "Ventas", "Clientes", "Servicios", "Follow Up", "Agenda", "Cotizaciones"]
