@@ -619,7 +619,7 @@ elif pagina == "Follow Up":
 
     import urllib.parse
 
-    st.markdown("### Enviar mensaje por WhatsApp")
+    st.markdown("### 💬 Enviar mensaje por WhatsApp")
 
     if not sin_servicio.empty:
 
@@ -631,19 +631,39 @@ elif pagina == "Follow Up":
         nombre = cliente_sel.split(" - ")[0]
         telefono = cliente_sel.split(" - ")[1].replace("-", "").replace(" ", "")
 
-        mensaje = f"""Hola {nombre}, te saluda Chem-Dry 👋
+        # 🔥 PLANTILLAS DINÁMICAS
+        PLANTILLAS_MENSAJES = {
+            "Seguimiento": "Hola {nombre}, te contactamos de {empresa}. Solo para dar seguimiento a tu último servicio. ¿Cómo fue tu experiencia?",
+            "Recordatorio": "Hola {nombre}, en {empresa} te recordamos que ya pasó tiempo desde tu último servicio. ¿Te gustaría agendar?",
+            "Promoción": "Hola {nombre}, en {empresa} tenemos una promoción especial disponible. ¿Te interesa aprovecharla?",
+            "Reactivación": "Hola {nombre}, te extrañamos en {empresa} 😄 Tenemos disponibilidad esta semana. ¿Agendamos?"
+        }
 
-Solo para darte seguimiento a tu último servicio.
+        plantilla_sel = st.selectbox(
+            "Selecciona plantilla",
+            list(PLANTILLAS_MENSAJES.keys())
+        )
 
-¿Te gustaría agendar otra limpieza o mantenimiento?
+        mensaje_base = PLANTILLAS_MENSAJES[plantilla_sel]
 
-Quedamos atentos 😊"""
+        mensaje_generado = mensaje_base.format(
+            nombre=nombre,
+            empresa=st.session_state.get("empresa", "nuestro negocio")
+        )
 
-        mensaje_encoded = urllib.parse.quote(mensaje)
+        mensaje = st.text_area(
+            "Mensaje",
+            value=mensaje_generado
+        )
 
-        whatsapp_url = f"https://wa.me/52{telefono}?text={mensaje_encoded}"
+        if telefono:
+            telefono = "52" + telefono
+            mensaje_encoded = urllib.parse.quote(mensaje)
+            whatsapp_url = f"https://wa.me/{telefono}?text={mensaje_encoded}"
 
-        st.link_button("Enviar mensaje por WhatsApp", whatsapp_url)
+            st.link_button("Enviar mensaje por WhatsApp", whatsapp_url)
+        else:
+            st.warning("Cliente sin teléfono válido")
     # AGENDA
 elif pagina == "Agenda":
     st.title("📅 Agenda de Servicios")
