@@ -343,7 +343,6 @@ elif pagina == "Ventas":
                 "Variación": f"{pct:+.1f}%"
             })
         st.dataframe(pd.DataFrame(resumen_meses), use_container_width=True, hide_index=True)
-
     # ── CLIENTES ──
 elif pagina == "Clientes":
     st.title("Origen de Clientes")
@@ -351,7 +350,7 @@ elif pagina == "Clientes":
     año_origen = st.selectbox("Año:", años_sin_2026)
     df_o = df[df["Año"] == año_origen].copy()
 
-        # 🔥 LIMPIEZA
+    # 🔥 LIMPIEZA
     df_o["Origen"] = (
         df_o["Origen"]
         .astype(str)
@@ -359,7 +358,7 @@ elif pagina == "Clientes":
         .str.lower()
     )
 
-        # 🔥 NORMALIZAR
+    # 🔥 NORMALIZAR
     df_o["Origen"] = df_o["Origen"].replace({
         "int": "Internet",
         "internet": "Internet",
@@ -385,16 +384,13 @@ elif pagina == "Clientes":
     st.bar_chart(origen.set_index("Canal"))
     st.dataframe(origen, use_container_width=True)
 
-    # ─────────────────────────────
-    # 🧠 HISTORIAL DE CLIENTES (PRO)
-    # ─────────────────────────────
+    # 🧠 HISTORIAL
     st.markdown("### 🧠 Historial de clientes")
 
     df_hist = df.copy()
     df_hist["Monto"] = pd.to_numeric(df_hist["Monto"], errors="coerce")
     df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors="coerce")
 
-    # 🔥 AGRUPAR CLIENTES
     historial = df_hist.groupby("Nombre").agg(
         Total_Gastado=("Monto", "sum"),
         Servicios=("Monto", "count"),
@@ -404,21 +400,15 @@ elif pagina == "Clientes":
 
     historial = historial.sort_values(by="Total_Gastado", ascending=False)
 
-    # 🔍 BUSCADOR (BIEN PUESTO)
-    cliente_buscar = st.text_input(
-        "🔍 Buscar cliente",
-        key=f"buscador_historial_{año_origen}"
-    )
+    cliente_buscar = st.text_input("🔍 Buscar cliente", key=f"buscador_historial_{año_origen}")
 
     if cliente_buscar:
         historial = historial[
             historial["Nombre"].str.contains(cliente_buscar, case=False, na=False)
         ]
 
-        # 🔥 FORMATO
     historial["Ultima_Visita"] = historial["Ultima_Visita"].dt.strftime("%d/%m/%Y")
 
-        # 🔥 TOP CLIENTES (VISUAL PRO)
     st.markdown("### 🏆 Top clientes")
 
     top_clientes = historial.head(10)
@@ -434,25 +424,20 @@ elif pagina == "Clientes":
             f"${top_clientes.iloc[0]['Total_Gastado']:,.0f}" if not top_clientes.empty else "$0"
         )
 
-# 🔥 TABLA
     st.dataframe(historial, use_container_width=True)
 
-    # PERFIL DEL CLIENTE A DETALLE
+    # 👤 PERFIL
     st.markdown("### 👤 Perfil del cliente")
 
     clientes_lista = historial["Nombre"].dropna().unique().tolist()
-
     cliente_sel = st.selectbox("Selecciona un cliente", clientes_lista)
 
     if cliente_sel:
         df_cliente = df[df["Nombre"] == cliente_sel].copy()
-
         df_cliente["Fecha"] = pd.to_datetime(df_cliente["Fecha"], errors="coerce")
         df_cliente["Monto"] = pd.to_numeric(df_cliente["Monto"], errors="coerce")
-
         df_cliente = df_cliente.sort_values(by="Fecha", ascending=False)
 
-    # 🔥 MÉTRICAS
         total = df_cliente["Monto"].sum()
         visitas = len(df_cliente)
         ultima = df_cliente["Fecha"].max()
@@ -467,206 +452,99 @@ elif pagina == "Clientes":
         st.markdown("### 📋 Historial completo")
 
         mostrar = df_cliente[[
-            "Fecha",
-            "Servicio",
-            "Monto",
-            "Origen",
+            "Fecha", "Servicio", "Monto", "Origen",
             "Comentarios con llamada posterior a venta"
         ]].copy()
 
         mostrar.columns = ["Fecha", "Servicio", "Monto", "Origen", "Comentarios"]
-
         st.dataframe(mostrar, use_container_width=True)
-        # ─────────────────────────────
-# 🔴 CLIENTES PERDIDOS (PRO)
-# ─────────────────────────────
-        st.markdown("## 🔴 Oportunidades de recuperación")
 
-        df_lost = df.copy()
-        df_lost["Fecha"] = pd.to_datetime(df_lost["Fecha"], errors="coerce")
-        df_lost["Monto"] = pd.to_numeric(df_lost["Monto"], errors="coerce")
+    # 🔴 CLIENTES PERDIDOS
+    st.markdown("## 🔴 Oportunidades de recuperación")
 
-        hoy = datetime.now()
+    df_lost = df.copy()
+    df_lost["Fecha"] = pd.to_datetime(df_lost["Fecha"], errors="coerce")
+    df_lost["Monto"] = pd.to_numeric(df_lost["Monto"], errors="coerce")
 
-        # Última visita + valor total
-        ultimo = df_lost.groupby("Nombre").agg(
-            Ultima_Visita=("Fecha", "max"),
-            Total_Gastado=("Monto", "sum"),
-            Tel=("Tel", "last")
-        ).reset_index()
+    hoy = datetime.now()
 
-        # Calcular meses sin servicio
-        ultimo["Meses_sin_servicio"] = ((hoy - ultimo["Ultima_Visita"]).dt.days / 30).round(1)
+    ultimo = df_lost.groupby("Nombre").agg(
+        Ultima_Visita=("Fecha", "max"),
+        Total_Gastado=("Monto", "sum"),
+        Tel=("Tel", "last")
+    ).reset_index()
 
-        # 🔥 FILTROS DINÁMICOS (PRO)
-        col1, col2 = st.columns(2)
+    ultimo["Meses_sin_servicio"] = ((hoy - ultimo["Ultima_Visita"]).dt.days / 30).round(1)
 
-        with col1:
-            meses_min = st.slider("Meses sin servicio", 3, 24, 6)
+    col1, col2 = st.columns(2)
 
-        with col2:
-            monto_min = st.number_input("Monto mínimo ($)", value=1500)
+    with col1:
+        meses_min = st.slider("Meses sin servicio", 3, 24, 6)
 
-        # Aplicar filtros
-        perdidos = ultimo[
-            (ultimo["Meses_sin_servicio"] >= meses_min) &
-            (ultimo["Total_Gastado"] >= monto_min)
-        ]
+    with col2:
+        monto_min = st.number_input("Monto mínimo ($)", value=1500)
 
-        perdidos = perdidos.sort_values(by="Total_Gastado", ascending=False)
+    perdidos = ultimo[
+        (ultimo["Meses_sin_servicio"] >= meses_min) &
+        (ultimo["Total_Gastado"] >= monto_min)
+    ]
 
-        # 🔥 MÉTRICAS CLAVE
-        col1, col2, col3 = st.columns(3)
+    perdidos = perdidos.sort_values(by="Total_Gastado", ascending=False)
 
-        col1.metric("Clientes recuperables", len(perdidos))
-        col2.metric("Dinero en riesgo", f"${perdidos['Total_Gastado'].sum():,.0f}")
-        col3.metric("Meses promedio sin servicio", f"{perdidos['Meses_sin_servicio'].mean():.1f}" if not perdidos.empty else "0")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Clientes recuperables", len(perdidos))
+    col2.metric("Dinero en riesgo", f"${perdidos['Total_Gastado'].sum():,.0f}")
+    col3.metric("Meses promedio sin servicio",
+        f"{perdidos['Meses_sin_servicio'].mean():.1f}" if not perdidos.empty else "0"
+    )
 
-        st.markdown("### 📋 Lista priorizada")
+    st.markdown("### 📋 Lista priorizada")
+    st.dataframe(
+        perdidos[["Nombre", "Tel", "Total_Gastado", "Meses_sin_servicio"]],
+        use_container_width=True
+    )
 
-        st.dataframe(
-            perdidos[["Nombre", "Tel", "Total_Gastado", "Meses_sin_servicio"]],
-            use_container_width=True
+    # 💬 MENSAJES DINÁMICOS
+    st.markdown("### 💬 Contacto rápido")
+
+    if not perdidos.empty:
+
+        cliente_sel_contacto = st.selectbox(
+            "Selecciona cliente",
+            perdidos["Nombre"],
+            key="select_contacto"
         )
 
-        # 🔥 ACCIÓN DIRECTA (WhatsApp)
-        st.markdown("### 💬 Contacto rápido")
+        cliente_data = perdidos[perdidos["Nombre"] == cliente_sel_contacto].iloc[0]
 
-        if not perdidos.empty:
+        tel = str(cliente_data["Tel"]).replace("-", "").replace(" ", "")
+        if tel:
+            tel = "52" + tel
 
-            # 🔥 SELECTOR DE CLIENTE
-            cliente_sel = st.selectbox(
-                "Selecciona cliente",
-                perdidos["Nombre"],
-                key="select_contacto"
-                )
+        # 🔥 PLANTILLAS
+        PLANTILLAS_MENSAJES = {
+            "Recordatorio": "Hola {nombre}, te contactamos de {empresa}. Hace tiempo no realizas un servicio con nosotros. ¿Te gustaría agendar?",
+            "Promoción": "Hola {nombre}, en {empresa} tenemos una promoción especial. ¿Te interesa?",
+            "Seguimiento": "Hola {nombre}, te damos seguimiento desde {empresa}. ¿Cómo fue tu servicio?",
+            "Reactivación": "Hola {nombre}, te extrañamos en {empresa} 😄 ¿Agendamos esta semana?"
+        }
 
-            cliente_data = perdidos[perdidos["Nombre"] == cliente_sel].iloc[0]
+        plantilla_sel = st.selectbox("Plantilla", list(PLANTILLAS_MENSAJES.keys()))
 
-                # 🔥 LIMPIAR TEL
-            tel = str(cliente_data["Tel"]).replace("-", "").replace(" ", "")
-            if tel:
-                    tel = "52" + tel
+        mensaje_base = PLANTILLAS_MENSAJES[plantilla_sel]
 
-                # 🔥 MENSAJE EDITABLE
-            mensaje = st.text_area(
-                "Mensaje",
-                value=f"Hola {cliente_sel}, hace tiempo que no realizamos un servicio contigo. Tenemos disponibilidad esta semana, ¿te gustaría agendar?",
-                key="mensaje_contacto"
-            )
+        mensaje_generado = mensaje_base.format(
+            nombre=cliente_sel_contacto,
+            empresa=st.session_state.get("empresa", "nuestro negocio")
+        )
 
-                # 🔥 GENERAR LINK
-            if tel:
-                url = f"https://wa.me/{tel}?text={mensaje.replace(' ', '%20')}"
-                    
-                st.markdown(f"[💬 Abrir WhatsApp]({url})")
-            else:
-                st.warning("Este cliente no tiene teléfono válido")
+        mensaje = st.text_area("Mensaje", value=mensaje_generado)
 
+        if tel:
+            url = f"https://wa.me/{tel}?text={mensaje.replace(' ', '%20')}"
+            st.markdown(f"[💬 Abrir WhatsApp]({url})")
         else:
-            st.info("No hay clientes en este filtro")
-        # ─────────────────────────────
-        # ➕ AGREGAR CLIENTE
-        # ─────────────────────────────
-        st.markdown("### ➕ Agregar nuevo cliente")
-        st.markdown("### 📂 Seleccionar destino")
-
-        sheets = st.session_state.get("SHEET_IDS", {})
-
-        años_disponibles = list(sheets.keys())
-
-        if not años_disponibles:
-            años_disponibles = [datetime.now().year]
-
-        index_default = len(años_disponibles) - 1
-
-        año_destino = st.selectbox(
-            "Guardar cliente en el año:",
-            años_disponibles,
-            index=index_default
-        )
-
-        with st.form("nuevo_cliente"):
-            nombre = st.text_input("Nombre")
-            telefono = st.text_input("Teléfono")
-            direccion = st.text_input("Dirección")
-            servicio = st.text_input("Servicio")
-            fecha = st.date_input("Fecha del servicio")
-            monto = st.number_input("Monto", min_value=0)
-
-            submitted = st.form_submit_button("Guardar cliente")
-
-            if submitted:
-                try:
-                    sheets = st.session_state.get("SHEET_IDS", {})
-                    sheet_id = sheets.get(año_destino)
-
-                    if not sheet_id:
-                        st.error("⚠️ No hay Google Sheet configurado para este año")
-                        st.stop()
-
-                    client = get_gspread_client()
-                    sh = client.open_by_key(sheet_id)
-                    worksheet = sh.get_worksheet(0)
-
-        # 👇 aquí ya tu lógica de append_row
-
-                    nueva_fila = [
-                        "",
-                        "",
-                        fecha.strftime("%d/%m/%Y"),
-                        nombre,
-                        telefono,
-                        direccion,
-                        "Manual",
-                        monto,
-                        servicio,
-                        "", "", "", ""
-                    ]
-
-                    worksheet.append_row(nueva_fila)
-
-                    st.success("✅ Cliente agregado correctamente")
-                    st.cache_data.clear()
-                    st.rerun()
-
-                except Exception as e:
-                    st.error(f"Error al guardar: {e}")
-
-        # ─────────────────────────────
-        # ❌ ELIMINAR CLIENTE
-        # ─────────────────────────────
-        st.markdown("### ❌ Eliminar cliente")
-
-        nombres_clientes = df_o["Nombre"].dropna().unique().tolist()
-
-        cliente_eliminar = st.selectbox("Selecciona cliente:", nombres_clientes)
-
-        if st.button("Eliminar cliente"):
-            try:
-                client = get_gspread_client()
-                sheet_id = SHEET_IDS[año_origen]
-                sh = client.open_by_key(sheet_id)
-                worksheet = sh.get_worksheet(0)
-
-                data = worksheet.get_all_values()
-                fila_a_borrar = None
-
-                for i, row in enumerate(data):
-                    if len(row) > 3 and row[3] == cliente_eliminar:
-                        fila_a_borrar = i + 1
-                        break
-
-                if fila_a_borrar:
-                    worksheet.delete_rows(fila_a_borrar)
-                    st.success(f"✅ Cliente '{cliente_eliminar}' eliminado")
-                    st.cache_data.clear()
-                    st.rerun()
-                else:
-                    st.warning("No se encontró el cliente en el Sheet")
-
-            except Exception as e:
-                st.error(f"Error eliminando: {e}")
+            st.warning("Este cliente no tiene teléfono válido")
         # ── SERVICIOS ──
 elif pagina == "Servicios":
     st.title("Servicios más vendidos")
