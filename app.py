@@ -543,11 +543,11 @@ elif pagina == "Clientes":
                     mensajes.append(f"{row['Nombre']} → {url}")
 
             if mensajes:
-                st.text_area(
-                    "Copia y abre estos links:",
-                    "\n\n".join(mensajes),
+                for m in mensajes:
+                    nombre, url = m.split(" → ")
+                    st.link_button(f"💬 {nombre}", url),
                     height=300
-                )
+                
 
     # 💬 CONTACTO INDIVIDUAL
     st.markdown("### 💬 Contacto rápido")
