@@ -503,7 +503,49 @@ elif pagina == "Clientes":
         perdidos[["Nombre", "Tel", "Total_Gastado", "Meses_sin_servicio"]],
         use_container_width=True
     )
+# ─────────────────────────────
+# 💣 CONTACTO MASIVO
+# ─────────────────────────────
+st.markdown("## 🚀 Contacto masivo")
 
+if not perdidos.empty:
+
+    plantillas = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
+    empresa = st.session_state.get("empresa", "")
+
+    plantilla_sel = st.selectbox(
+        "Selecciona plantilla para todos",
+        list(plantillas.keys()),
+        key="plantilla_masiva"
+    )
+
+    mensaje_base = plantillas[plantilla_sel]
+
+    if st.button("💬 Generar mensajes para todos"):
+
+        mensajes = []
+
+        for _, row in perdidos.iterrows():
+            tel = str(row["Tel"]).replace("-", "").replace(" ", "")
+
+            if tel:
+                tel = "52" + tel
+
+                mensaje = mensaje_base.format(
+                    nombre=row["Nombre"],
+                    empresa=empresa
+                )
+
+                url = f"https://wa.me/{tel}?text={mensaje.replace(' ', '%20')}"
+
+                mensajes.append(f"{row['Nombre']} → {url}")
+
+        if mensajes:
+            st.text_area(
+                "Copia y abre estos links (uno por uno):",
+                "\n\n".join(mensajes),
+                height=300
+            )
     # 💬 MENSAJES DINÁMICOS
     st.markdown("### 💬 Contacto rápido")
 
