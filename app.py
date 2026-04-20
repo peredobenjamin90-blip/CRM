@@ -286,8 +286,12 @@ def cargar_finanzas(sheet_id):
     if fila_entradas.empty or fila_salidas.empty:
         return None, None, None
 
-    ingresos = limpiar_numero(fila_entradas.iloc[0, -1])
-    gastos = limpiar_numero(fila_salidas.iloc[0, -1])
+    # Tomar columnas de meses (1 a 12 aprox)
+    meses_entradas = fila_entradas.iloc[0, 1:13]
+    meses_salidas = fila_salidas.iloc[0, 1:13]
+
+    ingresos = sum(limpiar_numero(v) for v in meses_entradas)
+    gastos = sum(limpiar_numero(v) for v in meses_salidas)
 
     utilidad = ingresos - gastos
 
