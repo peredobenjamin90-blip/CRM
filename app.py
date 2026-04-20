@@ -257,11 +257,20 @@ pagina = st.session_state["pagina"]
     # ── RESUMEN ──
     # 🔥 IMPORTANTE: ESTO VA FUERA DEL SIDEBAR
 pagina = st.session_state["pagina"]
-
+def cargar_finanzas(sheet_id):
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
+    df = pd.read_excel(url)
+    return df
 # ── RESUMEN ──
 if pagina == "Resumen":
     st.title(NOMBRE_APP)
-    año_resumen = st.selectbox("Año:", años_sin_2026, index=len(años_sin_2026)-1)
+
+    año_resumen = st.selectbox(
+        "Año:",
+        años_sin_2026,
+        index=len(años_sin_2026)-1
+    )
+
     df_r = df[df["Año"] == año_resumen]
 
     total_ventas = df_r["Monto"].sum()
@@ -275,6 +284,7 @@ if pagina == "Resumen":
     col3.metric("Ticket promedio", f"${ticket_promedio:,.0f}")
     col4.metric("Servicios realizados", f"{total_servicios:,}")
 
+    # 📊 Comparación anual
     if año_resumen > min(años_sin_2026):
         df_ant = df[df["Año"] == año_resumen - 1]
         ventas_ant = df_ant["Monto"].sum()
@@ -282,10 +292,48 @@ if pagina == "Resumen":
         porcentaje = (diferencia / ventas_ant * 100) if ventas_ant > 0 else 0
         color = "green" if diferencia > 0 else "red"
         simbolo = "▲" if diferencia > 0 else "▼"
+
         st.markdown(
             f"<p style='color:{color}; font-size:16px'>{simbolo} Comparado con {año_resumen-1}: ${abs(diferencia):,.0f} ({porcentaje:+.1f}%)</p>",
             unsafe_allow_html=True
         )
+
+    # 💰 FLUJO DE EFECTIVO
+    st.markdown("## 💰 Flujo de efectivo")
+
+    finanzas_usuario = USUARIOS[st.session_state["usuario"]].get("finanzas", {})
+
+    if finanzas_usuario:
+
+        año_finanzas = st.selectbox(
+            "Año financiero",
+            list(finanzas_usuario.keys()),
+            index=len(finanzas_usuario)-1
+        )
+
+        try:
+            df_fin = cargar_finanzas(finanzas_usuario[año_finanzas])
+
+            # 🔍 Buscar filas clave
+            entradas_row = df_fin[df_fin.iloc[:,1].astype(str).str.contains("Total Entradas", na=False)]
+            salidas_row = df_fin[df_fin.iloc[:,1].astype(str).str.contains("Total Salidas", na=False)]
+            utilidad_row = df_fin[df_fin.iloc[:,1].astype(str).str.contains("Diferencia", na=False)]
+
+            mes_actual = datetime.now().month
+            col_mes = mes_actual + 1
+
+            entradas = float(entradas_row.iloc[0, col_mes]) if not entradas_row.empty else 0
+            salidas = float(salidas_row.iloc[0, col_mes]) if not salidas_row.empty else 0
+            utilidad = float(utilidad_row.iloc[0, col_mes]) if not utilidad_row.empty else 0
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric("💰 Ingresos", f"${entradas:,.0f}")
+            col2.metric("💸 Gastos", f"${salidas:,.0f}")
+            col3.metric("🟢 Utilidad", f"${utilidad:,.0f}")
+
+        except Exception as e:
+            st.error("Error cargando finanzas")
+            st.write(e)
     # ── VENTAS ──
 elif pagina == "Ventas":
     st.title("Análisis de Ventas")
