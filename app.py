@@ -713,6 +713,9 @@ elif pagina == "Chat":
     st.markdown("### 💡 Ejemplos de preguntas")
     st.markdown("""
     - ¿Cuánto vendí este mes?
+    - ¿Cuánto vendí el mes pasado?
+    - ¿Cuánto vendí en los últimos 3 meses?
+    - ¿Cuánto vendí este año?
     - ¿Quién es mi mejor cliente?
     - ¿Qué clientes no han venido en 6 meses?
     - ¿Cuántos clientes tengo?
@@ -724,39 +727,80 @@ elif pagina == "Chat":
 
         pregunta_lower = pregunta.lower()
 
-        # 💰 Ventas totales
-        if "ventas" in pregunta_lower and "mes" not in pregunta_lower:
-            total = df["Monto"].sum()
-            st.success(f"Ventas totales: ${total:,.0f}")
+        hoy = datetime.now()
+        mes_actual = hoy.month
+        año_actual = hoy.year
 
-        # 📅 Ventas este mes
-        elif "este mes" in pregunta_lower:
-            mes_actual = datetime.now().month
-            ventas_mes = df[df["Mes"] == mes_actual]["Monto"].sum()
-            st.success(f"Ventas este mes: ${ventas_mes:,.0f}")
+        # 💰 VENTAS ESTE MES
+        if "este mes" in pregunta_lower:
+            df_mes = df[
+                (df["Mes"] == mes_actual) &
+                (df["Año"] == año_actual)
+            ]
+            total = df_mes["Monto"].sum()
+            st.success(f"Ventas este mes ({mes_actual}/{año_actual}): ${total:,.0f}")
 
-        # 🏆 Mejor cliente
+        # 📅 MES PASADO
+        elif "mes pasado" in pregunta_lower:
+            if mes_actual == 1:
+                mes = 12
+                año = año_actual - 1
+            else:
+                mes = mes_actual - 1
+                año = año_actual
+
+            df_mes = df[
+                (df["Mes"] == mes) &
+                (df["Año"] == año)
+            ]
+            total = df_mes["Monto"].sum()
+            st.success(f"Ventas mes pasado ({mes}/{año}): ${total:,.0f}")
+
+        # 📊 ÚLTIMOS 3 MESES
+        elif "3 meses" in pregunta_lower:
+            fecha_limite = hoy - timedelta(days=90)
+
+            df_3m = df.copy()
+            df_3m["Fecha"] = pd.to_datetime(df_3m["Fecha"], errors="coerce")
+
+            df_3m = df_3m[df_3m["Fecha"] >= fecha_limite]
+
+            total = df_3m["Monto"].sum()
+            st.success(f"Ventas últimos 3 meses: ${total:,.0f}")
+
+        # 📆 ESTE AÑO
+        elif "este año" in pregunta_lower:
+            df_año = df[df["Año"] == año_actual]
+            total = df_año["Monto"].sum()
+            st.success(f"Ventas {año_actual}: ${total:,.0f}")
+
+        # 💰 VENTAS GENERALES (fallback)
+        elif "ventas" in pregunta_lower:
+            df_año = df[df["Año"] == año_actual]
+            total = df_año["Monto"].sum()
+            st.success(f"Ventas {año_actual}: ${total:,.0f}")
+
+        # 🏆 MEJOR CLIENTE
         elif "mejor cliente" in pregunta_lower:
             if not df.empty:
-                top = df.groupby("Nombre")["Monto"].sum().idxmax()
-                total_top = df.groupby("Nombre")["Monto"].sum().max()
+                agrupado = df.groupby("Nombre")["Monto"].sum()
+                top = agrupado.idxmax()
+                total_top = agrupado.max()
                 st.success(f"Tu mejor cliente es {top} con ${total_top:,.0f}")
             else:
                 st.warning("No hay datos disponibles")
 
-        # 👥 Total clientes
+        # 👥 TOTAL CLIENTES
         elif "clientes" in pregunta_lower and "perdidos" not in pregunta_lower:
             total_clientes = df["Nombre"].nunique()
             st.success(f"Tienes {total_clientes} clientes únicos")
 
-        # 🔴 Clientes perdidos
+        # 🔴 CLIENTES PERDIDOS
         elif "perdidos" in pregunta_lower or "no han venido" in pregunta_lower:
 
             df_lost = df.copy()
             df_lost["Fecha"] = pd.to_datetime(df_lost["Fecha"], errors="coerce")
             df_lost["Monto"] = pd.to_numeric(df_lost["Monto"], errors="coerce")
-
-            hoy = datetime.now()
 
             ultimo = df_lost.groupby("Nombre").agg(
                 Ultima_Visita=("Fecha", "max"),
@@ -773,7 +817,7 @@ elif pagina == "Chat":
             else:
                 st.success("No hay clientes perdidos 🎉")
 
-        # ❌ No entendido
+        # ❌ NO ENTENDIDO
         else:
             st.warning("Aún no entiendo esa pregunta 😅")
     # AGENDA
