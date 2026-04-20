@@ -287,15 +287,28 @@ def cargar_finanzas(sheet_id):
         return None, None, None
 
     # Tomar columnas de meses (1 a 12 aprox)
-    meses_entradas = fila_entradas.iloc[0, 1:13]
-    meses_salidas = fila_salidas.iloc[0, 1:13]
+        fila_e = fila_entradas.iloc[0]
+        fila_s = fila_salidas.iloc[0]
 
-    ingresos = sum(limpiar_numero(v) for v in meses_entradas)
-    gastos = sum(limpiar_numero(v) for v in meses_salidas)
+        def extraer_meses(fila):
+            valores = []
+            for v in fila:
+                num = limpiar_numero(v)
+                if num > 0:
+                    valores.append(num)
+            return valores
 
-    utilidad = ingresos - gastos
+        return valores
 
-    return ingresos, gastos, utilidad
+        meses_entradas = extraer_meses(fila_e)
+        meses_salidas = extraer_meses(fila_s)
+
+        ingresos = sum(meses_entradas)
+        gastos = sum(meses_salidas)
+
+        utilidad = ingresos - gastos
+        return ingresos, gastos, utilidad
+
 # ── RESUMEN ──
 if pagina == "Resumen":
     st.title(NOMBRE_APP)
