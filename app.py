@@ -258,9 +258,24 @@ pagina = st.session_state["pagina"]
     # 🔥 IMPORTANTE: ESTO VA FUERA DEL SIDEBAR
 pagina = st.session_state["pagina"]
 def cargar_finanzas(sheet_id):
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
-    df = pd.read_excel(url)
-    return df
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+
+    df = pd.read_csv(url, header=None)
+
+    # 🔍 Buscar filas clave
+    fila_entradas = df[df[0].astype(str).str.contains("Total Entradas", case=False, na=False)]
+    fila_salidas = df[df[0].astype(str).str.contains("Total Salidas", case=False, na=False)]
+
+    if fila_entradas.empty or fila_salidas.empty:
+        return None, None, None
+
+    # 💰 Tomar último valor (Total Año)
+    ingresos = pd.to_numeric(fila_entradas.iloc[0, -1], errors="coerce")
+    gastos = pd.to_numeric(fila_salidas.iloc[0, -1], errors="coerce")
+
+    utilidad = ingresos - gastos
+
+    return ingresos, gastos, utilidad
 # ── RESUMEN ──
 if pagina == "Resumen":
     st.title(NOMBRE_APP)
@@ -305,31 +320,26 @@ if pagina == "Resumen":
 
     if finanzas_usuario:
 
+        años_finanzas = list(finanzas_usuario.keys())
+
         año_finanzas = st.selectbox(
             "Año financiero",
-            list(finanzas_usuario.keys()),
-            index=len(finanzas_usuario)-1
+            años_finanzas,
+            index=len(años_finanzas)-1
         )
 
         try:
-            df_fin = cargar_finanzas(finanzas_usuario[año_finanzas])
+            ingresos, gastos, utilidad = cargar_finanzas(finanzas_usuario[año_finanzas])
 
-            # 🔍 Buscar filas clave
-            entradas_row = df_fin[df_fin.iloc[:,1].astype(str).str.contains("Total Entradas", na=False)]
-            salidas_row = df_fin[df_fin.iloc[:,1].astype(str).str.contains("Total Salidas", na=False)]
-            utilidad_row = df_fin[df_fin.iloc[:,1].astype(str).str.contains("Diferencia", na=False)]
+            if ingresos is not None:
 
-            mes_actual = datetime.now().month
-            col_mes = mes_actual + 1
+                col1, col2, col3 = st.columns(3)
+                col1.metric("💰 Ingresos", f"${ingresos:,.0f}")
+                col2.metric("💸 Gastos", f"${gastos:,.0f}")
+                col3.metric("🟢 Utilidad", f"${utilidad:,.0f}")
 
-            entradas = float(entradas_row.iloc[0, col_mes]) if not entradas_row.empty else 0
-            salidas = float(salidas_row.iloc[0, col_mes]) if not salidas_row.empty else 0
-            utilidad = float(utilidad_row.iloc[0, col_mes]) if not utilidad_row.empty else 0
-
-            col1, col2, col3 = st.columns(3)
-            col1.metric("💰 Ingresos", f"${entradas:,.0f}")
-            col2.metric("💸 Gastos", f"${salidas:,.0f}")
-            col3.metric("🟢 Utilidad", f"${utilidad:,.0f}")
+            else:
+                st.warning("No se pudieron leer los datos del sheet")
 
         except Exception as e:
             st.error("Error cargando finanzas")
