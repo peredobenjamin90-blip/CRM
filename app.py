@@ -278,7 +278,10 @@ def limpiar_numero(valor):
 def cargar_finanzas(sheet_id):
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
 
-    df = pd.read_csv(url, header=None)
+    try:
+        df = pd.read_csv(url, header=None)
+    except:
+        return None, None, None
 
     fila_entradas = df[df[0].astype(str).str.contains("Total Entradas", case=False, na=False)]
     fila_salidas = df[df[0].astype(str).str.contains("Total Salidas", case=False, na=False)]
@@ -286,28 +289,25 @@ def cargar_finanzas(sheet_id):
     if fila_entradas.empty or fila_salidas.empty:
         return None, None, None
 
-    # Tomar columnas de meses (1 a 12 aprox)
-        fila_e = fila_entradas.iloc[0]
-        fila_s = fila_salidas.iloc[0]
+    fila_e = fila_entradas.iloc[0]
+    fila_s = fila_salidas.iloc[0]
 
-        def extraer_meses(fila):
-            valores = []
-            for v in fila:
-                num = limpiar_numero(v)
-                if num > 0:
-                    valores.append(num)
-            return valores
-
+    def extraer_meses(fila):
+        valores = []
+        for v in fila:
+            num = limpiar_numero(v)
+            if num > 0:
+                valores.append(num)
         return valores
 
-        meses_entradas = extraer_meses(fila_e)
-        meses_salidas = extraer_meses(fila_s)
+    meses_entradas = extraer_meses(fila_e)
+    meses_salidas = extraer_meses(fila_s)
 
-        ingresos = sum(meses_entradas)
-        gastos = sum(meses_salidas)
+    ingresos = sum(meses_entradas)
+    gastos = sum(meses_salidas)
+    utilidad = ingresos - gastos
 
-        utilidad = ingresos - gastos
-        return ingresos, gastos, utilidad
+    return ingresos, gastos, utilidad
 
 # ── RESUMEN ──
 if pagina == "Resumen":
