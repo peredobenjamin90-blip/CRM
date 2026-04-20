@@ -506,6 +506,11 @@ elif pagina == "Clientes":
 # ─────────────────────────────
 # 💣 CONTACTO MASIVO
 # ─────────────────────────────
+st.dataframe(
+    perdidos[["Nombre", "Tel", "Total_Gastado", "Meses_sin_servicio"]],
+    use_container_width=True
+)
+
 st.markdown("## 🚀 Contacto masivo")
 
 if not perdidos.empty:
