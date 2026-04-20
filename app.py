@@ -257,21 +257,37 @@ pagina = st.session_state["pagina"]
     # ── RESUMEN ──
     # 🔥 IMPORTANTE: ESTO VA FUERA DEL SIDEBAR
 pagina = st.session_state["pagina"]
+def limpiar_numero(valor):
+    if pd.isna(valor):
+        return 0
+
+    valor = str(valor)
+    valor = valor.replace("$", "")
+    valor = valor.replace(",", "")
+    valor = valor.replace(" ", "")
+    
+    if valor == "-" or valor == "":
+        return 0
+
+    try:
+        return float(valor)
+    except:
+        return 0
+
+
 def cargar_finanzas(sheet_id):
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
 
     df = pd.read_csv(url, header=None)
 
-    # 🔍 Buscar filas clave
     fila_entradas = df[df[0].astype(str).str.contains("Total Entradas", case=False, na=False)]
     fila_salidas = df[df[0].astype(str).str.contains("Total Salidas", case=False, na=False)]
 
     if fila_entradas.empty or fila_salidas.empty:
         return None, None, None
 
-    # 💰 Tomar último valor (Total Año)
-    ingresos = pd.to_numeric(fila_entradas.iloc[0, -1], errors="coerce")
-    gastos = pd.to_numeric(fila_salidas.iloc[0, -1], errors="coerce")
+    ingresos = limpiar_numero(fila_entradas.iloc[0, -1])
+    gastos = limpiar_numero(fila_salidas.iloc[0, -1])
 
     utilidad = ingresos - gastos
 
