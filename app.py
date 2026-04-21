@@ -279,28 +279,11 @@ def cargar_finanzas(url):
         st.error(f"Error descargando CSV: {e}")
         return None, None, None
 
-    def leer_celda(fila_idx, col_idx):
-        try:
-            valor = df.iloc[fila_idx, col_idx]
-            limpio = str(valor).replace("$", "").replace(",", "").replace("`", "").strip()
-            return float(limpio)
-        except:
-            return 0
+    # DEBUG — ver cuántas columnas tiene y fila 8 completa
+    st.caption(f"Total columnas: {len(df.columns)}")
+    st.caption(f"Fila 7 completa: {list(enumerate(df.iloc[7]))}")
 
-    # DEBUG
-    st.caption(f"Celda O8 (7,14): {df.iloc[7, 14]}")
-    st.caption(f"Celda O8 (8,14): {df.iloc[8, 14]}")
-
-    ingresos = leer_celda(7, 14)
-    if ingresos == 0:
-        ingresos = leer_celda(8, 14)
-
-    gastos = leer_celda(23, 14)
-    if gastos == 0:
-        gastos = leer_celda(24, 14)
-
-    utilidad = ingresos - gastos
-    return ingresos, gastos, utilidad
+    return None, None, None
 # ── RESUMEN ──
 if pagina == "Resumen":
     st.title(NOMBRE_APP)
