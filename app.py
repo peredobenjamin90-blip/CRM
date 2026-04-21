@@ -272,25 +272,40 @@ def limpiar_numero(valor):
     except:
         return 0
 
-
 def cargar_finanzas(url):
     try:
         df = pd.read_csv(url, header=None)
     except:
         return None, None, None
 
-    fila_entradas = df[df[0].astype(str).str.contains("Total Entradas", case=False, na=False)]
-    fila_salidas = df[df[0].astype(str).str.contains("Total Salidas", case=False, na=False)]
+    def buscar_total(keyword):
+        filas = df[df.astype(str).apply(
+            lambda row: row.str.contains(keyword, case=False, na=False).any(),
+            axis=1
+        )]
 
-    if fila_entradas.empty or fila_salidas.empty:
-        return None, None, None
+        if filas.empty:
+            return 0
 
-    fila_e = fila_entradas.iloc[0]
-    fila_s = fila_salidas.iloc[0]
+        fila = filas.iloc[0]
 
-    # 👉 última columna = Total Año
-    ingresos = limpiar_numero(fila_e.iloc[-1])
-    gastos = limpiar_numero(fila_s.iloc[-1])
+        # Buscar el ÚLTIMO número válido en la fila (Total Año)
+        valores = []
+        for v in fila:
+            try:
+                num = float(str(v).replace("$", "").replace(",", "").strip())
+                if num > 0:
+                    valores.append(num)
+            except:
+                continue
+
+        if valores:
+            return valores[-1]  # 👈 ESTE es el total anual real
+
+        return 0
+
+    ingresos = buscar_total("Total Entradas")
+    gastos = buscar_total("Total Salidas")
 
     utilidad = ingresos - gastos
 
