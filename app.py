@@ -279,13 +279,64 @@ def cargar_finanzas(url):
         st.error(f"Error descargando CSV: {e}")
         return None, None, None
 
-    # DEBUG — buscar fila que contenga el total anual
-    for i, row in df.iterrows():
-        fila_str = row.astype(str)
-        if fila_str.str.contains("1,209,481|1209481|Total Año|Total Mes", na=False).any():
-            st.caption(f"Fila {i}: {list(enumerate(row))}")
+    def sumar_columna_desde_fila(keyword, col_idx, filas_max=50):
+        # Encontrar fila del keyword
+        fila_inicio = None
+        for i, row in df.iterrows():
+            if str(row.iloc[0]).strip() == keyword:
+                fila_inicio = i
+                break
+        if fila_inicio is None:
+            return 0
 
-    return None, None, None
+        # Buscar fila del siguiente keyword para saber dónde parar
+        fila_fin = fila_inicio + filas_max
+
+        total = 0
+        for i in range(fila_inicio, min(fila_fin, len(df))):
+            try:
+                val = df.iloc[i, col_idx]
+                limpio = str(val).replace("$", "").replace(",", "").replace("`", "").strip()
+                num = float(limpio)
+                if num > 0:
+                    total += num
+            except:
+                continue
+        return total
+
+    # Detectar si es estructura semanal (columna 42 = Total Mes)
+    es_semanal = df.iloc[8, 42] == "Total Mes" if len(df.columns) > 42 else False
+
+    if es_semanal:
+        # Sumar columna 42 entre ENTRADAS y SALIDAS
+        ingresos = sumar_columna_desde_fila("ENTRADAS", 42, filas_max=15)
+        gastos = sumar_columna_desde_fila("SALIDAS", 42, filas_max=15)
+    else:
+        # Estructura mensual normal — buscar max en fila de Total Entradas/Salidas
+        def buscar_total(keyword):
+            filas = df[df.astype(str).apply(
+                lambda row: row.str.contains(keyword, case=False, na=False).any(),
+                axis=1
+            )]
+            if filas.empty:
+                return 0
+            fila = filas.iloc[0]
+            valores = []
+            for v in fila:
+                try:
+                    limpio = str(v).replace("$", "").replace(",", "").replace("`", "").strip()
+                    num = float(limpio)
+                    if num > 0:
+                        valores.append(num)
+                except:
+                    continue
+            return max(valores) if valores else 0
+
+        ingresos = buscar_total("Total Entradas")
+        gastos = buscar_total("Total Salidas")
+
+    utilidad = ingresos - gastos
+    return ingresos, gastos, utilidad
 # ── RESUMEN ──
 if pagina == "Resumen":
     st.title(NOMBRE_APP)
