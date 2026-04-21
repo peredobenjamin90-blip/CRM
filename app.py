@@ -288,20 +288,15 @@ def cargar_finanzas(url):
             return 0
         fila = filas.iloc[0]
 
-        # DEBUG — borra después
-        st.caption(f"Fila raw: {list(fila)}")
-
         valores = []
         for v in fila:
             try:
-                num = float(str(v).replace("$", "").replace(",", "").strip())
+                limpio = str(v).replace("$", "").replace(",", "").replace("`", "").strip()
+                num = float(limpio)
                 if num > 0:
                     valores.append(num)
             except:
                 continue
-
-        # DEBUG — borra después
-        st.caption(f"Valores parseados: {valores}")
 
         return max(valores) if valores else 0
 
