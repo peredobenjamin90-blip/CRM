@@ -275,7 +275,8 @@ def limpiar_numero(valor):
 def cargar_finanzas(url):
     try:
         df = pd.read_csv(url, header=None)
-    except:
+    except Exception as e:
+        st.error(f"Error descargando CSV: {e}")
         return None, None, None
 
     def buscar_total(keyword):
@@ -283,13 +284,9 @@ def cargar_finanzas(url):
             lambda row: row.str.contains(keyword, case=False, na=False).any(),
             axis=1
         )]
-
         if filas.empty:
             return 0
-
         fila = filas.iloc[0]
-
-        # Buscar el ÚLTIMO número válido en la fila (Total Año)
         valores = []
         for v in fila:
             try:
@@ -298,17 +295,16 @@ def cargar_finanzas(url):
                     valores.append(num)
             except:
                 continue
-
-        if valores:
-            return valores[-1]  # 👈 ESTE es el total anual real
-
-        return 0
+        return valores[-1] if valores else 0
 
     ingresos = buscar_total("Total Entradas")
-    gastos = buscar_total("Total Salidas")
+    gastos   = buscar_total("Total Salidas")
+
+    # Debug temporal — borra estas 2 líneas cuando funcione
+    st.caption(f"Ingresos raw: {ingresos} | Gastos raw: {gastos}")
+    st.caption(f"Primeras filas: {df.head(3).to_string()}")
 
     utilidad = ingresos - gastos
-
     return ingresos, gastos, utilidad
 # ── RESUMEN ──
 if pagina == "Resumen":
