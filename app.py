@@ -287,6 +287,10 @@ def cargar_finanzas(url):
         if filas.empty:
             return 0
         fila = filas.iloc[0]
+
+        # DEBUG — borra después
+        st.caption(f"Fila raw: {list(fila)}")
+
         valores = []
         for v in fila:
             try:
@@ -295,6 +299,10 @@ def cargar_finanzas(url):
                     valores.append(num)
             except:
                 continue
+
+        # DEBUG — borra después
+        st.caption(f"Valores parseados: {valores}")
+
         return max(valores) if valores else 0
 
     ingresos = buscar_total("Total Entradas")
