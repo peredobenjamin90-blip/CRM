@@ -283,34 +283,39 @@ def cargar_finanzas(sheet_id):
     except:
         return None, None, None
 
-    # 🔍 Buscar columna de "Total Año Ingresos"
     col_ingresos = None
     col_gastos = None
 
+    # 🔍 Buscar columna de ingresos
     for col in df.columns:
         if df[col].astype(str).str.contains("Total Año Ingresos", case=False, na=False).any():
             col_ingresos = col
 
-        if df[col].astype(str).str.contains("Total Año Gastos", case=False, na=False).any():
-            col_gastos = col
+    # 🔍 Buscar fila donde empiezan SALIDAS
+    fila_salidas_inicio = df[df[0].astype(str).str.contains("SALIDAS", case=False, na=False)]
 
-    if col_ingresos is None or col_gastos is None:
+    if fila_salidas_inicio.empty or col_ingresos is None:
         return None, None, None
 
-    # 🔥 Extraer TODOS los valores de esa columna (ignorando texto)
+    fila_inicio = fila_salidas_inicio.index[0]
+
+    # 🔥 Para gastos: usar misma columna que ingresos pero solo en sección SALIDAS
+    col_gastos = col_ingresos
+
+    # 🔥 INGRESOS (toda la columna)
     ingresos_vals = [
         limpiar_numero(v)
         for v in df[col_ingresos]
         if limpiar_numero(v) > 0
     ]
 
+    # 🔥 GASTOS (solo después de "SALIDAS")
     gastos_vals = [
-        limpiar_numero(v)
-        for v in df[col_gastos]
-        if limpiar_numero(v) > 0
+        limpiar_numero(df.iloc[i, col_gastos])
+        for i in range(fila_inicio, len(df))
+        if limpiar_numero(df.iloc[i, col_gastos]) > 0
     ]
 
-    # 🔥 SUMA REAL (esto es lo correcto según tu sheet)
     ingresos = sum(ingresos_vals)
     gastos = sum(gastos_vals)
 
