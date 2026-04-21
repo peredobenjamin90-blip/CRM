@@ -251,8 +251,6 @@ with st.sidebar:
             del st.session_state[key]
         st.rerun()
 
-# 🔥 IMPORTANTE: ESTO VA FUERA DEL SIDEBAR
-pagina = st.session_state["pagina"]
 
     # ── RESUMEN ──
     # 🔥 IMPORTANTE: ESTO VA FUERA DEL SIDEBAR
@@ -283,38 +281,40 @@ def cargar_finanzas(sheet_id):
     except:
         return None, None, None
 
+    # 🔍 Buscar columna de ingresos (más flexible)
     col_ingresos = None
-    col_gastos = None
-
-    # 🔍 Buscar columna de ingresos
     for col in df.columns:
-        if df[col].astype(str).str.contains("Total Año Ingresos", case=False, na=False).any():
+        if df[col].astype(str).str.lower().str.contains("total año ingresos", na=False).any():
             col_ingresos = col
+            break
 
-    # 🔍 Buscar fila donde empiezan SALIDAS
-    fila_salidas_inicio = df[df[0].astype(str).str.contains("SALIDAS", case=False, na=False)]
-
-    if fila_salidas_inicio.empty or col_ingresos is None:
+    if col_ingresos is None:
         return None, None, None
 
-    fila_inicio = fila_salidas_inicio.index[0]
+    # 🔍 Buscar fila donde empiezan SALIDAS (más robusto)
+    fila_inicio = None
+    for i in range(len(df)):
+        texto = str(df.iloc[i, 0]).lower().strip()
+        if "salidas" in texto:
+            fila_inicio = i
+            break
 
-    # 🔥 Para gastos: usar misma columna que ingresos pero solo en sección SALIDAS
-    col_gastos = col_ingresos
+    if fila_inicio is None:
+        return None, None, None
 
-    # 🔥 INGRESOS (toda la columna)
-    ingresos_vals = [
-        limpiar_numero(v)
-        for v in df[col_ingresos]
-        if limpiar_numero(v) > 0
-    ]
+    # 🔥 INGRESOS (solo parte de arriba, antes de SALIDAS)
+    ingresos_vals = []
+    for i in range(0, fila_inicio):
+        val = limpiar_numero(df.iloc[i, col_ingresos])
+        if val > 0:
+            ingresos_vals.append(val)
 
-    # 🔥 GASTOS (solo después de "SALIDAS")
-    gastos_vals = [
-        limpiar_numero(df.iloc[i, col_gastos])
-        for i in range(fila_inicio, len(df))
-        if limpiar_numero(df.iloc[i, col_gastos]) > 0
-    ]
+    # 🔥 GASTOS (solo después de SALIDAS)
+    gastos_vals = []
+    for i in range(fila_inicio, len(df)):
+        val = limpiar_numero(df.iloc[i, col_ingresos])
+        if val > 0:
+            gastos_vals.append(val)
 
     ingresos = sum(ingresos_vals)
     gastos = sum(gastos_vals)
