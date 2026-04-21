@@ -274,11 +274,12 @@ def limpiar_numero(valor):
 
 
 def cargar_finanzas(sheet_id):
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
 
     try:
         df = pd.read_csv(url, header=None)
-    except:
+    except Exception as e:
+        st.error(f"Error real: {e}")
         return None, None, None
 
     # 🔍 Buscar columna de ingresos (más flexible)
