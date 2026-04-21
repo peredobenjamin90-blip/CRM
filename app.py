@@ -265,7 +265,7 @@ def limpiar_numero(valor):
     valor = valor.replace("$", "")
     valor = valor.replace(",", "")
     valor = valor.replace(" ", "")
-    
+
     if valor == "-" or valor == "":
         return 0
 
@@ -283,7 +283,7 @@ def cargar_finanzas(sheet_id):
     except:
         return None, None, None
 
-    # 🔍 Buscar filas clave
+    # 🔍 Buscar filas correctas
     fila_entradas = df[df[0].astype(str).str.contains("Total Entradas", case=False, na=False)]
     fila_salidas = df[df[0].astype(str).str.contains("Total Salidas", case=False, na=False)]
 
@@ -293,22 +293,25 @@ def cargar_finanzas(sheet_id):
     fila_e = fila_entradas.iloc[0]
     fila_s = fila_salidas.iloc[0]
 
-    # 🔥 COLUMNA "TOTAL AÑO"
-    COL_TOTAL = 13  # Ajuste típico (puede ser 13 o 14 dependiendo del sheet)
+    # 🔥 FUNCIÓN ROBUSTA (agarra el total real)
+    def obtener_total(fila):
+        valores = []
 
-    def safe_get(fila):
-        try:
-            return limpiar_numero(fila[COL_TOTAL])
-        except:
-            return 0
+        for v in fila:
+            num = limpiar_numero(v)
+            if num > 0:
+                valores.append(num)
 
-    ingresos = safe_get(fila_e)
-    gastos = safe_get(fila_s)
+        if valores:
+            return valores[-1]  # último número válido = Total Año
+        return 0
+
+    ingresos = obtener_total(fila_e)
+    gastos = obtener_total(fila_s)
 
     utilidad = ingresos - gastos
 
     return ingresos, gastos, utilidad
-
 # ── RESUMEN ──
 if pagina == "Resumen":
     st.title(NOMBRE_APP)
