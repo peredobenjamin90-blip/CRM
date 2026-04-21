@@ -24,10 +24,10 @@ USUARIOS = {
         # 💰 SHEETS DE FINANZAS (🔥 ahora con URL completa + gid)
         # 💰 SHEETS DE FINANZAS — GIDs corregidos
         "finanzas": {
-            2021: "https://docs.google.com/spreadsheets/d/1UYCOODvI1qqIMZK0Ub--xYLWuSpikLUPTv0O82dHidI/export?format=csv&gid=1421862808",
-            2022: "https://docs.google.com/spreadsheets/d/1sJ0PhFEltEAmKGc9inDUlwFK19ItUzNiA4osKzdt4Cg/export?format=csv&gid=541909783",
+            2021: "https://docs.google.com/spreadsheets/d/1UYCOODvI1qqIMZK0Ub--xYLWuSpikLUPTv0O82dHidI/export?format=csv&gid=1585340803",
+            2022: "https://docs.google.com/spreadsheets/d/1sJ0PhFEltEAmKGc9inDUlwFK19ItUzNiA4osKzdt4Cg/export?format=csv&gid=1738265014",
             2023: "https://docs.google.com/spreadsheets/d/1K_DWpnkHiJ7YSbapkkhBdS-i4JUOXSphQD6MsihouQo/export?format=csv&gid=1832931943",
-            2024: "https://docs.google.com/spreadsheets/d/14ObgDv302X7mv4a43dwcfCjjYKyQzkBX9TnkKtRmGqM/export?format=csv&gid=1350430936",
+            2024: "https://docs.google.com/spreadsheets/d/14ObgDv302X7mv4a43dwcfCjjYKyQzkBX9TnkKtRmGqM/export?format=csv&gid=123077403",
             2025: "https://docs.google.com/spreadsheets/d/1mSNqzPw3nfZuTio-Kb-1So0gd2nUqrC1MAyMu4rUVkE/export?format=csv&gid=811298190",
             2026: "https://docs.google.com/spreadsheets/d/1VbfaboK2C1OZhRcsfq1uO8Xo6ZmeSN7Iyc6UeJby83s/export?format=csv&gid=1220405499",
         }
