@@ -273,52 +273,24 @@ def limpiar_numero(valor):
         return 0
 
 
-def cargar_finanzas(sheet_id):
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
-
+def cargar_finanzas(url):
     try:
         df = pd.read_csv(url, header=None)
-    except Exception as e:
-        st.error(f"Error real: {e}")
+    except:
         return None, None, None
 
-    # 🔍 Buscar columna de ingresos (más flexible)
-    col_ingresos = None
-    for col in df.columns:
-        if df[col].astype(str).str.lower().str.contains("total año ingresos", na=False).any():
-            col_ingresos = col
-            break
+    fila_entradas = df[df[0].astype(str).str.contains("Total Entradas", case=False, na=False)]
+    fila_salidas = df[df[0].astype(str).str.contains("Total Salidas", case=False, na=False)]
 
-    if col_ingresos is None:
+    if fila_entradas.empty or fila_salidas.empty:
         return None, None, None
 
-    # 🔍 Buscar fila donde empiezan SALIDAS (más robusto)
-    fila_inicio = None
-    for i in range(len(df)):
-        texto = str(df.iloc[i, 0]).lower().strip()
-        if "salidas" in texto:
-            fila_inicio = i
-            break
+    fila_e = fila_entradas.iloc[0]
+    fila_s = fila_salidas.iloc[0]
 
-    if fila_inicio is None:
-        return None, None, None
-
-    # 🔥 INGRESOS (solo parte de arriba, antes de SALIDAS)
-    ingresos_vals = []
-    for i in range(0, fila_inicio):
-        val = limpiar_numero(df.iloc[i, col_ingresos])
-        if val > 0:
-            ingresos_vals.append(val)
-
-    # 🔥 GASTOS (solo después de SALIDAS)
-    gastos_vals = []
-    for i in range(fila_inicio, len(df)):
-        val = limpiar_numero(df.iloc[i, col_ingresos])
-        if val > 0:
-            gastos_vals.append(val)
-
-    ingresos = sum(ingresos_vals)
-    gastos = sum(gastos_vals)
+    # 👉 última columna = Total Año
+    ingresos = limpiar_numero(fila_e.iloc[-1])
+    gastos = limpiar_numero(fila_s.iloc[-1])
 
     utilidad = ingresos - gastos
 
