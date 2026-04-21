@@ -28,7 +28,7 @@ USUARIOS = {
             2023: "1K_DWpnkHiJ7YSbapkkhBdS-i4JUOXSphQD6MsihouQo",
             2024: "14ObgDv302X7mv4a43dwcfCjjYKyQzkBX9TnkKtRmGqM",
             2025: "1mSNqzPw3nfZuTio-Kb-1So0gd2nUqrC1MAyMu4rUVkE",
-            2026: "1VbfaboK2C1OZhRcsfq1uO8Xo6ZmeSN7Iyc6UeJby83s"
+            2026: "1VbfaboK2C1OZhRcsfq1uO8Xo6ZmeSN7Iyc6UeJby83s",
         }
     },
 
