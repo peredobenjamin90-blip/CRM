@@ -1050,7 +1050,7 @@ elif pagina == "Agenda":
         if submitted:
             try:
                 client = get_gspread_client()
-                sheet_id = SHEET_IDS[fecha.year]
+                sheet_id = st.session_state["SHEET_IDS"][fecha.year]
                 sh = client.open_by_key(sheet_id)
                 worksheet = sh.get_worksheet(0)
 
