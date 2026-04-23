@@ -951,44 +951,27 @@ elif pagina == "Agenda":
     df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce")
     df_a["Monto"] = pd.to_numeric(df_a["Monto"], errors="coerce")
 
-    # 🔥 PLANTILLAS
     plantillas = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
     empresa = st.session_state.get("empresa", "")
 
-    # ─────────────────────────────
     # 💰 INGRESOS POR DÍA
-    # ─────────────────────────────
     ingresos_dia = df_a.groupby(df_a["Fecha"].dt.date)["Monto"].sum().reset_index()
     ingresos_dia.columns = ["Fecha", "Ingresos"]
-
     st.markdown("### 💰 Ingresos por día")
     st.line_chart(ingresos_dia.set_index("Fecha"))
 
-    # ─────────────────────────────
     # 📅 SELECCIÓN DE FECHA
-    # ─────────────────────────────
-    fecha_sel = st.date_input(
-        "Selecciona una fecha",
-        datetime.now(),
-        key="agenda_fecha_1"
-    )
-
+    fecha_sel = st.date_input("Selecciona una fecha", datetime.now(), key="agenda_fecha_1")
     df_dia = df_a[df_a["Fecha"].dt.date == fecha_sel]
 
-    # ─────────────────────────────
     # 📊 MÉTRICAS DEL DÍA
-    # ─────────────────────────────
     total_dia = df_dia["Monto"].sum()
-
     col1, col2 = st.columns(2)
     col1.metric("Servicios ese día", len(df_dia))
     col2.metric("Ingresos del día", f"${total_dia:,.0f}")
-
     st.markdown("---")
 
-    # ─────────────────────────────
     # 📋 SERVICIOS DEL DÍA
-    # ─────────────────────────────
     if df_dia.empty:
         st.info("No hay servicios agendados")
     else:
@@ -1001,50 +984,53 @@ elif pagina == "Agenda":
                 **🧼 Servicio:** {row.get('Servicio','')}  
                 **💰 Monto:** ${row.get('Monto',0):,.0f}
                 """)
-
                 tel = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
-
                 if tel:
                     tel = "52" + tel
-
-                    # 🔥 MENSAJE DINÁMICO
                     mensaje_template = plantillas.get("confirmacion", "Hola {nombre}")
-                    mensaje = mensaje_template.format(
-                        nombre=row.get("Nombre", ""),
-                        empresa=empresa
-                    )
-
+                    mensaje = mensaje_template.format(nombre=row.get("Nombre", ""), empresa=empresa)
                     url = f"https://wa.me/{tel}?text={mensaje.replace(' ', '%20')}"
                     st.markdown(f"[💬 Enviar WhatsApp]({url})")
                 else:
                     st.warning("Cliente sin teléfono")
-
                 st.markdown("---")
 
-    # ─────────────────────────────
     # ➕ AGENDAR SERVICIO
-    # ─────────────────────────────
     st.markdown("### ➕ Agendar nuevo servicio")
 
-    clientes_existentes = df_a["Nombre"].dropna().unique().tolist()
+    # Agrupar clientes únicos con todos sus teléfonos y última dirección
+    clientes_info = (
+        df_a.groupby("Nombre").agg(
+            Telefonos=("Tel", lambda x: " / ".join(
+                str(t) for t in x.dropna().unique()
+                if str(t).strip() not in ["", "nan"]
+            )),
+            Direccion=("Dirección", "last")
+        ).reset_index()
+    )
+    clientes_lista = [""] + clientes_info["Nombre"].tolist()
+
+    # Selección fuera del form para poder reaccionar al cambio
+    cliente_sel = st.selectbox("Cliente existente (opcional)", clientes_lista, key="cliente_agenda_sel")
+
+    # Autorellenar datos del cliente seleccionado
+    tel_default = ""
+    dir_default = ""
+    if cliente_sel:
+        fila_cliente = clientes_info[clientes_info["Nombre"] == cliente_sel]
+        if not fila_cliente.empty:
+            tel_default = fila_cliente.iloc[0]["Telefonos"]
+            dir_default = str(fila_cliente.iloc[0]["Direccion"]) if pd.notnull(fila_cliente.iloc[0]["Direccion"]) else ""
 
     with st.form("agendar_servicio"):
-
-        cliente_sel = st.selectbox(
-            "Cliente existente (opcional)",
-            [""] + clientes_existentes
-        )
-
         nombre = st.text_input("Nombre del cliente", value=cliente_sel)
-        telefono = st.text_input("Teléfono")
-        direccion = st.text_input("Dirección")
+        telefono = st.text_input("Teléfono(s)", value=tel_default)
+        direccion = st.text_input("Dirección", value=dir_default)
         servicio = st.text_input("Servicio")
 
         col1, col2 = st.columns(2)
-
         with col1:
             fecha = st.date_input("Fecha", datetime.now())
-
         with col2:
             monto = st.number_input("Monto", min_value=0)
 
@@ -1058,22 +1044,14 @@ elif pagina == "Agenda":
                 worksheet = sh.get_worksheet(0)
 
                 folio = str(int(datetime.now().timestamp()))
-
                 nueva_fila = [
-                    folio,
-                    "",
+                    folio, "",
                     fecha.strftime("%d/%m/%Y"),
-                    nombre,
-                    telefono,
-                    direccion,
-                    "Agenda",
-                    monto,
-                    servicio,
+                    nombre, telefono, direccion,
+                    "Agenda", monto, servicio,
                     "", "", "", ""
                 ]
-
                 worksheet.append_row(nueva_fila)
-
                 st.success("✅ Servicio agendado correctamente")
                 st.cache_data.clear()
                 st.rerun()
@@ -1083,17 +1061,9 @@ elif pagina == "Agenda":
 
     st.markdown("---")
 
-    # ─────────────────────────────
     # 📅 VER AGENDA
-    # ─────────────────────────────
-    fecha_sel_2 = st.date_input(
-        "Selecciona una fecha",
-        datetime.now(),
-        key="agenda_fecha_2"
-    )
-
+    fecha_sel_2 = st.date_input("Selecciona una fecha", datetime.now(), key="agenda_fecha_2")
     df_dia = df_a[df_a["Fecha"].dt.date == fecha_sel_2]
-
     st.metric("Servicios ese día", len(df_dia))
 
     if df_dia.empty:
@@ -1107,22 +1077,13 @@ elif pagina == "Agenda":
                 **📍 Dirección:** {row.get('Dirección','')}  
                 **🧼 Servicio:** {row.get('Servicio','')}  
                 """)
-
                 tel = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
-
                 if tel:
                     tel = "52" + tel
-
-                    # 🔥 MENSAJE DINÁMICO
                     mensaje_template = plantillas.get("confirmacion", "Hola {nombre}")
-                    mensaje = mensaje_template.format(
-                        nombre=row.get("Nombre", ""),
-                        empresa=empresa
-                    )
-
+                    mensaje = mensaje_template.format(nombre=row.get("Nombre", ""), empresa=empresa)
                     url = f"https://wa.me/{tel}?text={mensaje.replace(' ', '%20')}"
                     st.markdown(f"[💬 Enviar WhatsApp]({url})")
-
                 st.markdown("---")
 
     # ── COTIZACIONES ──
