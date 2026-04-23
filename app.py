@@ -420,6 +420,10 @@ elif pagina == "Ventas":
         df_f = df[df["Año"].isin(años_sel)]
         pivot = df_f.groupby(["Año","Mes"])["Monto"].sum().reset_index()
         pivot = pivot.pivot(index="Mes", columns="Año", values="Monto").fillna(0)
+    
+        nombres_meses = {1:"Ene",2:"Feb",3:"Mar",4:"Abr",5:"May",6:"Jun",
+                     7:"Jul",8:"Ago",9:"Sep",10:"Oct",11:"Nov",12:"Dic"}
+        pivot.index = pivot.index.map(nombres_meses)
         st.line_chart(pivot)
 
         st.subheader("Proyección 2026")
