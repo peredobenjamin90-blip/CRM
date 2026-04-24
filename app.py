@@ -1091,7 +1091,8 @@ elif pagina == "Agenda":
             "start": row["Fecha"].strftime("%Y-%m-%d"),
             "end": row["Fecha"].strftime("%Y-%m-%d"),
             "extendedProps": {
-                "folio": str(row.get("Folio sistema", ""))
+                "folio": str(row.get("Folio sistema", "")),
+                "año": int(row.get("Año", 0))
             }
         })
 
@@ -1107,20 +1108,19 @@ elif pagina == "Agenda":
     }
 
     resultado = calendar(events=eventos, options=opciones_calendario)
-    if resultado and resultado.get("eventClick"):
-        evento_click = resultado["eventClick"]["event"]
-        folio_click = evento_click.get("extendedProps", {}).get("folio")
-        st.caption(f"Folio clickeado: {folio_click}")
-        st.caption(f"Columnas del df: {list(df_a.columns)}")
-        st.caption(f"Primeros folios: {list(df_a['Folio sistema'].astype(str).head(5))}")
 
     # 📋 DETALLE AL PICAR EVENTO
     if resultado and resultado.get("eventClick"):
         evento_click = resultado["eventClick"]["event"]
         folio_click = evento_click.get("extendedProps", {}).get("folio")
+        año_click = evento_click.get("extendedProps", {}).get("año")
 
-        if folio_click:
-            df_evento = df_a[df_a["Folio sistema"].astype(str) == str(folio_click)]
+        if folio_click and año_click:
+            df_evento = df_a[
+                (df_a["Folio sistema"].astype(str) == str(folio_click)) &
+                (df_a["Año"] == año_click)
+            ]
+
             if not df_evento.empty:
                 row = df_evento.iloc[0]
 
