@@ -5,6 +5,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 from config import USUARIOS
 import uuid
+import plotly.express as px
+
 NOMBRE_APP = "CRM Dashboard"
 st.set_page_config(
     page_title= NOMBRE_APP,
