@@ -970,8 +970,9 @@ elif pagina == "Agenda":
     plantillas = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
     empresa = st.session_state.get("empresa", "")
 
-    # 💰 INGRESOS POR DÍA
-    ingresos_dia = df_a.groupby(df_a["Fecha"].dt.date)["Monto"].sum().reset_index()
+    # 💰 INGRESOS POR DÍA — filtrar desde 2021
+    df_a_filtrado = df_a[df_a["Fecha"].dt.year >= 2021]
+    ingresos_dia = df_a_filtrado.groupby(df_a_filtrado["Fecha"].dt.date)["Monto"].sum().reset_index()
     ingresos_dia.columns = ["Fecha", "Ingresos"]
     st.markdown("### 💰 Ingresos por día")
     st.line_chart(ingresos_dia.set_index("Fecha"))
@@ -1014,7 +1015,6 @@ elif pagina == "Agenda":
     # ➕ AGENDAR SERVICIO
     st.markdown("### ➕ Agendar nuevo servicio")
 
-    # Agrupar clientes únicos con todos sus teléfonos y última dirección
     clientes_info = (
         df_a.groupby("Nombre").agg(
             Telefonos=("Tel", lambda x: " / ".join(
@@ -1026,10 +1026,8 @@ elif pagina == "Agenda":
     )
     clientes_lista = [""] + clientes_info["Nombre"].tolist()
 
-    # Selección fuera del form para poder reaccionar al cambio
     cliente_sel = st.selectbox("Cliente existente (opcional)", clientes_lista, key="cliente_agenda_sel")
 
-    # Autorellenar datos del cliente seleccionado
     tel_default = ""
     dir_default = ""
     if cliente_sel:
