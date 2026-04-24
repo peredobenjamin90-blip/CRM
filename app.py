@@ -970,7 +970,7 @@ elif pagina == "Agenda":
     plantillas = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
     empresa = st.session_state.get("empresa", "")
 
-    # 💰 INGRESOS POR DÍA — filtrar desde 2021
+    # 💰 INGRESOS POR DÍA
     df_a_filtrado = df_a[df_a["Fecha"].dt.year >= 2021]
     ingresos_dia = df_a_filtrado.groupby(df_a_filtrado["Fecha"].dt.date)["Monto"].sum().reset_index()
     ingresos_dia.columns = ["Fecha", "Ingresos"]
@@ -1076,7 +1076,7 @@ elif pagina == "Agenda":
 
     st.markdown("---")
 
-    # 📅 CALENDARIO DE SERVICIOS
+    # 📅 CALENDARIO
     from streamlit_calendar import calendar
 
     st.markdown("### 📅 Calendario de servicios")
@@ -1090,6 +1090,9 @@ elif pagina == "Agenda":
             "title": f"{row.get('Nombre', '')} — {row.get('Servicio', '')}",
             "start": row["Fecha"].strftime("%Y-%m-%d"),
             "end": row["Fecha"].strftime("%Y-%m-%d"),
+            "extendedProps": {
+                "folio": str(row.get("Folio sistema", ""))
+            }
         })
 
     opciones_calendario = {
@@ -1103,7 +1106,55 @@ elif pagina == "Agenda":
         "height": 600,
     }
 
-    calendar(events=eventos, options=opciones_calendario)
+    resultado = calendar(events=eventos, options=opciones_calendario)
+
+    # 📋 DETALLE AL PICAR EVENTO
+    if resultado and resultado.get("eventClick"):
+        evento_click = resultado["eventClick"]["event"]
+        folio_click = evento_click.get("extendedProps", {}).get("folio")
+
+        if folio_click:
+            df_evento = df_a[df_a["Folio sistema"].astype(str) == str(folio_click)]
+            if not df_evento.empty:
+                row = df_evento.iloc[0]
+
+                st.markdown("---")
+                st.markdown("### 📋 Detalle del servicio")
+                st.markdown(f"""
+                **👤 Cliente:** {row.get('Nombre','')}  
+                **📞 Tel:** {row.get('Tel','')}  
+                **📍 Dirección:** {row.get('Dirección','')}  
+                **🧼 Servicio:** {row.get('Servicio','')}  
+                **💰 Monto:** ${row.get('Monto',0):,.0f}  
+                **💬 Comentarios:** {row.get('Comentarios con llamada posterior a venta','')}
+                """)
+
+                tel_ev = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
+                if tel_ev:
+                    tel_ev = "52" + tel_ev
+                    mensaje_template = plantillas.get("confirmacion", "Hola {nombre}")
+                    mensaje = mensaje_template.format(nombre=row.get("Nombre", ""), empresa=empresa)
+                    url = f"https://wa.me/{tel_ev}?text={mensaje.replace(' ', '%20')}"
+                    st.markdown(f"[💬 Enviar WhatsApp]({url})")
+
+                if st.button("🗑️ Borrar este servicio", key="borrar_evento"):
+                    try:
+                        client = get_gspread_client()
+                        sheet_id = st.session_state["SHEET_IDS"][row["Fecha"].year]
+                        sh = client.open_by_key(sheet_id)
+                        worksheet = sh.get_worksheet(0)
+
+                        celdas = worksheet.findall(str(folio_click))
+                        if celdas:
+                            worksheet.delete_rows(celdas[0].row)
+                            st.success("✅ Servicio eliminado")
+                            st.cache_data.clear()
+                            st.cache_resource.clear()
+                            st.rerun()
+                        else:
+                            st.warning("No se encontró el servicio en el sheet")
+                    except Exception as e:
+                        st.error(f"Error al borrar: {e}")
 
     # ── COTIZACIONES ──
 elif pagina == "Cotizaciones":
