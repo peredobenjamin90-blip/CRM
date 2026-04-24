@@ -1068,6 +1068,7 @@ elif pagina == "Agenda":
                 worksheet.append_row(nueva_fila)
                 st.success("✅ Servicio agendado correctamente")
                 st.cache_data.clear()
+                st.cache_resource.clear()
                 st.rerun()
 
             except Exception as e:
@@ -1075,30 +1076,34 @@ elif pagina == "Agenda":
 
     st.markdown("---")
 
-    # 📅 VER AGENDA
-    fecha_sel_2 = st.date_input("Selecciona una fecha", datetime.now(), key="agenda_fecha_2")
-    df_dia = df_a[df_a["Fecha"].dt.date == fecha_sel_2]
-    st.metric("Servicios ese día", len(df_dia))
+    # 📅 CALENDARIO DE SERVICIOS
+    from streamlit_calendar import calendar
 
-    if df_dia.empty:
-        st.info("No hay servicios agendados")
-    else:
-        for _, row in df_dia.iterrows():
-            with st.container():
-                st.markdown(f"""
-                **👤 Cliente:** {row.get('Nombre','')}  
-                **📞 Tel:** {row.get('Tel','')}  
-                **📍 Dirección:** {row.get('Dirección','')}  
-                **🧼 Servicio:** {row.get('Servicio','')}  
-                """)
-                tel = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
-                if tel:
-                    tel = "52" + tel
-                    mensaje_template = plantillas.get("confirmacion", "Hola {nombre}")
-                    mensaje = mensaje_template.format(nombre=row.get("Nombre", ""), empresa=empresa)
-                    url = f"https://wa.me/{tel}?text={mensaje.replace(' ', '%20')}"
-                    st.markdown(f"[💬 Enviar WhatsApp]({url})")
-                st.markdown("---")
+    st.markdown("### 📅 Calendario de servicios")
+
+    df_cal = df_a[df_a["Fecha"].dt.year >= 2021].copy()
+    df_cal = df_cal.dropna(subset=["Fecha"])
+
+    eventos = []
+    for _, row in df_cal.iterrows():
+        eventos.append({
+            "title": f"{row.get('Nombre', '')} — {row.get('Servicio', '')}",
+            "start": row["Fecha"].strftime("%Y-%m-%d"),
+            "end": row["Fecha"].strftime("%Y-%m-%d"),
+        })
+
+    opciones_calendario = {
+        "initialView": "dayGridMonth",
+        "locale": "es",
+        "headerToolbar": {
+            "left": "prev,next today",
+            "center": "title",
+            "right": "dayGridMonth,timeGridWeek,listWeek"
+        },
+        "height": 600,
+    }
+
+    calendar(events=eventos, options=opciones_calendario)
 
     # ── COTIZACIONES ──
 elif pagina == "Cotizaciones":
