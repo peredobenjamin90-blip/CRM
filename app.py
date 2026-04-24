@@ -1107,6 +1107,12 @@ elif pagina == "Agenda":
     }
 
     resultado = calendar(events=eventos, options=opciones_calendario)
+    if resultado and resultado.get("eventClick"):
+        evento_click = resultado["eventClick"]["event"]
+        folio_click = evento_click.get("extendedProps", {}).get("folio")
+        st.caption(f"Folio clickeado: {folio_click}")
+        st.caption(f"Columnas del df: {list(df_a.columns)}")
+        st.caption(f"Primeros folios: {list(df_a['Folio sistema'].astype(str).head(5))}")
 
     # 📋 DETALLE AL PICAR EVENTO
     if resultado and resultado.get("eventClick"):
