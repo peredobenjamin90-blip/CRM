@@ -970,13 +970,6 @@ elif pagina == "Agenda":
     plantillas = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
     empresa = st.session_state.get("empresa", "")
 
-    # 💰 INGRESOS POR DÍA
-    df_a_filtrado = df_a[df_a["Fecha"].dt.year >= 2021]
-    ingresos_dia = df_a_filtrado.groupby(df_a_filtrado["Fecha"].dt.date)["Monto"].sum().reset_index()
-    ingresos_dia.columns = ["Fecha", "Ingresos"]
-    st.markdown("### 💰 Ingresos por día")
-    st.line_chart(ingresos_dia.set_index("Fecha"))
-
     # 📅 SELECCIÓN DE FECHA
     fecha_sel = st.date_input("Selecciona una fecha", datetime.now(), key="agenda_fecha_1")
     df_dia = df_a[df_a["Fecha"].dt.date == fecha_sel]
@@ -1066,14 +1059,17 @@ elif pagina == "Agenda":
                     "", "", "", ""
                 ]
 
-                # Encontrar índice real del último valor no vacío
-                col_a = worksheet.col_values(1)
-                datos_col_a = col_a[1:]  # quitar header
-                ultimo_idx = 0
-                for i, v in enumerate(datos_col_a):
-                    if str(v).strip() != "":
-                        ultimo_idx = i
-                primera_vacia = ultimo_idx + 3  # +1 índice 0, +1 header, +1 siguiente
+                # Buscar primera fila vacía por columna C (Fecha)
+                col_c = worksheet.col_values(3)  # columna C = Fecha
+                datos_col_c = col_c[1:]  # quitar header
+                primera_vacia = None
+                for i, v in enumerate(datos_col_c):
+                    if str(v).strip() == "":
+                        primera_vacia = i + 2  # +1 índice 0, +1 header
+                        break
+
+                if primera_vacia is None:
+                    primera_vacia = len(datos_col_c) + 2
 
                 worksheet.insert_row(nueva_fila, primera_vacia)
 
