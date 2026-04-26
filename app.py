@@ -178,7 +178,16 @@ def login():
 if "usuario" not in st.session_state:
     login()
     st.stop()
+if "usuario" not in st.session_state:
+    login()
+    st.stop()
 
+# Cargar config dinámica del usuario
+app_config = USUARIOS[st.session_state["usuario"]].get("app", {})
+NOMBRE_APP = app_config.get("nombre", "CRM Dashboard")
+
+
+# resto igual...
 # ── CARGAR DATOS ──
 df = cargar_datos(st.session_state.get("SHEET_IDS", {}))
 
