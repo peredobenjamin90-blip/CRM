@@ -964,7 +964,7 @@ elif pagina == "Agenda":
     st.title("📅 Agenda de Servicios")
 
     df_a = df.copy()
-    df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce", dayfirst=True)
+    df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce", format="mixed", dayfirst=True)
     df_a["Monto"] = pd.to_numeric(df_a["Monto"], errors="coerce")
 
     plantillas = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
@@ -1050,7 +1050,7 @@ elif pagina == "Agenda":
                 sh = client.open_by_key(sheet_id)
                 worksheet = sh.get_worksheet(0)
 
-                # Calcular siguiente folio desde columna B (Folio interno)
+                # Calcular siguiente folio desde columna B
                 col_b = worksheet.col_values(2)
                 ultimo_folio = 0
                 for v in col_b[1:]:
@@ -1135,7 +1135,7 @@ elif pagina == "Agenda":
         df_cal_raw = cargar_datos_calendario(st.session_state.get("SHEET_IDS", {}))
 
     df_cal_raw.columns = df_cal_raw.columns.str.strip()
-    df_cal_raw["Fecha"] = pd.to_datetime(df_cal_raw["Fecha"], errors="coerce", dayfirst=True)
+    df_cal_raw["Fecha"] = pd.to_datetime(df_cal_raw["Fecha"], errors="coerce", format="mixed", dayfirst=True)
     if "Monto" in df_cal_raw.columns:
         df_cal_raw["Monto"] = pd.to_numeric(df_cal_raw["Monto"], errors="coerce")
     df_cal = df_cal_raw[df_cal_raw["Fecha"].dt.year >= 2021].copy()
