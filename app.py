@@ -505,23 +505,9 @@ elif pagina == "Clientes":
         .str.lower()
     )
 
-    # 🔥 NORMALIZAR
-    df_o["Origen"] = df_o["Origen"].replace({
-        "int": "Internet",
-        "internet": "Internet",
-        "rep": "Repetición",
-        "repeticion": "Repetición",
-        "rec": "Recomendación",
-        "recomendacion": "Recomendación",
-        "ref": "Recomendación",
-        "face": "Facebook",
-        "amigo": "Amigo",
-        "amigos": "Amigo",
-        "club": "Club",
-        "primo": "Primo",
-        "maristas": "Maristas"
-    })
-
+    # 🔥 NORMALIZAR — desde config
+    origenes_config = USUARIOS[st.session_state["usuario"]].get("origenes", {})
+    df_o["Origen"] = df_o["Origen"].replace(origenes_config)
     df_o["Origen"] = df_o["Origen"].replace(["", "nan"], "Sin especificar")
 
     # 🔥 GRÁFICA
@@ -557,14 +543,11 @@ elif pagina == "Clientes":
     historial["Ultima_Visita"] = historial["Ultima_Visita"].dt.strftime("%d/%m/%Y")
 
     st.markdown("### 🏆 Top clientes")
-
     top_clientes = historial.head(10)
 
     col1, col2 = st.columns(2)
-
     with col1:
         st.metric("💰 Mejor cliente", top_clientes.iloc[0]["Nombre"] if not top_clientes.empty else "-")
-
     with col2:
         st.metric(
             "💵 Mayor gasto",
@@ -597,12 +580,10 @@ elif pagina == "Clientes":
         col4.metric("Ticket promedio", f"${promedio:,.0f}")
 
         st.markdown("### 📋 Historial completo")
-
         mostrar = df_cliente[[
             "Fecha", "Servicio", "Monto", "Origen",
             "Comentarios con llamada posterior a venta"
         ]].copy()
-
         mostrar.columns = ["Fecha", "Servicio", "Monto", "Origen", "Comentarios"]
         st.dataframe(mostrar, use_container_width=True)
 
@@ -624,10 +605,8 @@ elif pagina == "Clientes":
     ultimo["Meses_sin_servicio"] = ((hoy - ultimo["Ultima_Visita"]).dt.days / 30).round(1)
 
     col1, col2 = st.columns(2)
-
     with col1:
         meses_min = st.slider("Meses sin servicio", 3, 24, 6)
-
     with col2:
         monto_min = st.number_input("Monto mínimo ($)", value=1500)
 
@@ -635,7 +614,6 @@ elif pagina == "Clientes":
         (ultimo["Meses_sin_servicio"] >= meses_min) &
         (ultimo["Total_Gastado"] >= monto_min)
     ]
-
     perdidos = perdidos.sort_values(by="Total_Gastado", ascending=False)
 
     col1, col2, col3 = st.columns(3)
@@ -656,7 +634,6 @@ elif pagina == "Clientes":
     st.markdown("## 🚀 Contacto masivo")
 
     if not perdidos.empty:
-
         plantillas = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
         empresa = st.session_state.get("empresa", "")
 
@@ -671,33 +648,22 @@ elif pagina == "Clientes":
             mensaje_base = "Hola {nombre}, te contactamos de {empresa}"
 
         if st.button("💬 Generar mensajes para todos"):
-
             cols = st.columns(3)
             i = 0
-
             for _, row in perdidos.iterrows():
                 tel = str(row["Tel"]).replace("-", "").replace(" ", "")
-
                 if tel:
                     tel = "52" + tel
-
-                    mensaje = mensaje_base.format(
-                        nombre=row["Nombre"],
-                        empresa=empresa
-                    )
-
+                    mensaje = mensaje_base.format(nombre=row["Nombre"], empresa=empresa)
                     url = f"https://wa.me/{tel}?text={mensaje.replace(' ', '%20')}"
-
                     with cols[i % 3]:
                         st.link_button(f"💬 {row['Nombre']}", url)
-
                     i += 1
 
     # 💬 CONTACTO INDIVIDUAL
     st.markdown("### 💬 Contacto rápido")
 
     if not perdidos.empty:
-
         cliente_sel_contacto = st.selectbox(
             "Selecciona cliente",
             perdidos["Nombre"],
@@ -705,7 +671,6 @@ elif pagina == "Clientes":
         )
 
         cliente_data = perdidos[perdidos["Nombre"] == cliente_sel_contacto].iloc[0]
-
         tel = str(cliente_data["Tel"]).replace("-", "").replace(" ", "")
         if tel:
             tel = "52" + tel
@@ -717,16 +682,11 @@ elif pagina == "Clientes":
             "Reactivación": "Hola {nombre}, te extrañamos en {empresa} 😄 ¿Agendamos esta semana?"
         }
 
-        plantilla_sel = st.selectbox(
-            "Plantilla",
-            list(PLANTILLAS_MENSAJES.keys())
-        )
-
+        plantilla_sel = st.selectbox("Plantilla", list(PLANTILLAS_MENSAJES.keys()))
         mensaje = PLANTILLAS_MENSAJES[plantilla_sel].format(
             nombre=cliente_sel_contacto,
             empresa=st.session_state.get("empresa", "tu negocio")
         )
-
         mensaje_edit = st.text_area("Mensaje", value=mensaje)
 
         if tel:
