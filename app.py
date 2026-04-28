@@ -7,13 +7,6 @@ from config import USUARIOS
 import uuid
 import plotly.express as px
 import os
-ruta_base = os.path.dirname(os.path.abspath(__file__))
-st.caption(f"Ruta base: {ruta_base}")
-st.caption(f"Archivos: {os.listdir(ruta_base)}")
-try:
-    st.caption(f"Assets: {os.listdir(os.path.join(ruta_base, 'assets'))}")
-except Exception as e:
-    st.caption(f"Error assets: {e}")
 
 NOMBRE_APP = "CRM Dashboard"
 ICONO_APP = "🧹"
@@ -148,7 +141,6 @@ def login():
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
 
-        # Primero mostrar título default
         st.markdown(
             "<h1 style='text-align:center; color:#2B5BAA; font-size:2.5rem;'>CRM</h1>",
             unsafe_allow_html=True
@@ -159,23 +151,10 @@ def login():
         )
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Usuario fuera del form
         usuario_temp = st.text_input("Usuario", placeholder="Tu usuario")
-
-        # Mostrar logo si el usuario existe y tiene logo
-        if usuario_temp in USUARIOS:
-            logo_path = USUARIOS[usuario_temp].get("app", {}).get("logo")
-            if logo_path:
-                try:
-                    col_a, col_b, col_c = st.columns([1, 2, 1])
-                    with col_b:
-                        st.image(logo_path, use_container_width=True)
-                except:
-                    pass
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Contraseña y botón en form para Enter
         with st.form("login_form"):
             password = st.text_input(
                 "Contraseña",
@@ -201,7 +180,6 @@ def login():
 if "usuario" not in st.session_state:
     login()
     st.stop()
-
 # Cargar config dinámica del usuario
 app_config = USUARIOS[st.session_state["usuario"]].get("app", {})
 NOMBRE_APP = app_config.get("nombre", "CRM Dashboard")
