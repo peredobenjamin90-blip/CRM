@@ -6,6 +6,7 @@ from google.oauth2.service_account import Credentials
 from config import USUARIOS
 import uuid
 import plotly.express as px
+import os
 
 NOMBRE_APP = "CRM Dashboard"
 ICONO_APP = "🧹"
