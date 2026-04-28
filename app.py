@@ -204,10 +204,10 @@ def cargar_datos(sheet_ids):
     try:
         client = get_gspread_client()
     except Exception as e:
-        st.error(f"Error cliente gspread: {e}")
-        return pd.DataFrame()
+        return pd.DataFrame(), [str(e)]
 
     dfs = []
+    errores = []
     columnas_base = [
         "Fecha", "Nombre", "Tel", "Dirección",
         "Origen", "Monto", "Servicio",
@@ -223,7 +223,6 @@ def cargar_datos(sheet_ids):
                 worksheet = sh.get_worksheet(0)
                 data = worksheet.get_all_records()
                 df = pd.DataFrame(data)
-                st.caption(f"Año {año}: {len(df)} filas")  # DEBUG
                 if df.empty:
                     df = pd.DataFrame(columns=columnas_base)
                 df["Año"] = año
@@ -231,13 +230,68 @@ def cargar_datos(sheet_ids):
                 time.sleep(1)
                 break
             except Exception as e:
-                st.error(f"Error año {año} intento {intento}: {e}")  # DEBUG
+                errores.append(f"Año {año} intento {intento}: {e}")
                 if intento < 2:
                     time.sleep(2)
 
     if not dfs:
-        return pd.DataFrame(columns=columnas_base + ["Año"])
-    return pd.concat(dfs, ignore_index=True)
+        return pd.DataFrame(columns=columnas_base + ["Año"]), errores
+    return pd.concat(dfs, ignore_index=True), errores
+
+
+# ── CARGAR DATOS ──
+resultado = cargar_datos(st.session_state.get("SHEET_IDS", {}))
+df = resultado[0]
+errores_carga = resultado[1]
+
+if errores_carga:
+    for e in errores_carga:
+        st.error(e)
+
+st.caption(f"Filas cargadas: {len(df)}")
+
+# ─────────────────────────────
+# 🔥 FALLBACK (SI NO HAY DATOS)
+# ─────────────────────────────
+if df is None or df.empty:
+    df = pd.DataFrame({
+        "Nombre": [],
+        "Tel": [],
+        "Fecha": [],
+        "Monto": [],
+        "Servicio": [],
+        "Origen": [],
+        "Comentarios con llamada posterior a venta": [],
+        "Año": []
+    })
+    st.warning("⚠️ No hay datos conectados aún.")
+
+# ─────────────────────────────
+# 🔥 LIMPIEZA SIEMPRE
+# ─────────────────────────────
+df.columns = df.columns.str.strip()
+df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")
+
+df["Monto"] = (
+    df["Monto"]
+    .astype(str)
+    .str.replace("$", "", regex=False)
+    .str.replace(",", "", regex=False)
+    .str.strip()
+)
+
+df["Monto"] = pd.to_numeric(df["Monto"], errors="coerce")
+df["Mes"] = df["Fecha"].dt.month
+
+# ─────────────────────────────
+# 🔥 AÑOS DINÁMICOS
+# ─────────────────────────────
+años_disponibles = sorted(df["Año"].dropna().unique())
+
+if not años_disponibles:
+    años_disponibles = [datetime.now().year]
+
+años_sin_2026 = años_disponibles
 # ── SIDEBAR ──
 with st.sidebar:
     logo_path = USUARIOS[st.session_state["usuario"]].get("app", {}).get("logo")
