@@ -245,13 +245,14 @@ if not años_disponibles:
 años_sin_2026 = años_disponibles
 # ── SIDEBAR ──
 with st.sidebar:
-    # Logo en sidebar
     logo_path = USUARIOS[st.session_state["usuario"]].get("app", {}).get("logo")
     if logo_path:
         try:
             import os
+            from PIL import Image
             logo_path_full = os.path.join(os.path.dirname(__file__), logo_path)
-            st.sidebar.image(logo_path_full, width=150)
+            img = Image.open(logo_path_full)
+            st.sidebar.image(img, width=150)
             st.markdown("<br>", unsafe_allow_html=True)
         except Exception as e:
             st.caption(f"Error logo: {e}")
