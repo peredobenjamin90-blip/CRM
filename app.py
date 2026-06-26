@@ -310,16 +310,31 @@ def cargar_datos(empresa_id, access_token):
         )
         client.postgrest.auth(access_token)
 
-        response = client.table("clientes")\
-            .select("*")\
-            .eq("empresa_id", empresa_id)\
-            .limit(5000)\
-            .execute()
+        todos = []
+        page = 0
+        page_size = 500
 
-        if not response.data:
+        while True:
+            response = client.table("clientes")\
+                .select("*")\
+                .eq("empresa_id", empresa_id)\
+                .range(page * page_size, (page + 1) * page_size - 1)\
+                .execute()
+
+            if not response.data:
+                break
+
+            todos.extend(response.data)
+
+            if len(response.data) < page_size:
+                break
+
+            page += 1
+
+        if not todos:
             return pd.DataFrame()
 
-        df = pd.DataFrame(response.data)
+        df = pd.DataFrame(todos)
         df = df.rename(columns={
             "comentarios": "Comentarios con llamada posterior a venta",
             "nombre": "Nombre",
