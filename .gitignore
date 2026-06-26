@@ -6,3 +6,7 @@ __pycache__/
 credentials.json
 __pycache__/
 .DS_Store
+chemdry-dashboard-aa66119b0d6c.json
+migrar_clientes.py
+migrar_2022.py
+*.json

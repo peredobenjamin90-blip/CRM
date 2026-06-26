@@ -145,17 +145,6 @@ def cargar_datos(sheet_ids):
     if not dfs:
         return pd.DataFrame(columns=columnas_base + ["Año"]), errores
     return pd.concat(dfs, ignore_index=True), errores
-resultado = cargar_datos(st.session_state.get("SHEET_IDS", {}))
-df = resultado[0]
-errores_carga = resultado[1]
-
-# Solo mostrar errores que no sean rate limit resuelto
-errores_graves = [e for e in errores_carga if "429" not in e or df.empty]
-if errores_graves:
-    for e in errores_graves:
-        st.error(e)
-elif errores_carga and not df.empty:
-    st.caption("⚠️ Algunos sheets tardaron en cargar pero los datos están disponibles.")
 def asignar_ids_clientes():
     import unicodedata
 
@@ -366,6 +355,7 @@ def login():
                     st.session_state["empresa"] = user_data.data["empresa"]
                     st.session_state["sistema"] = user_data.data["sistema"]
                     st.session_state["auth_id"] = str(response.user.id)
+                    st.session_state["empresa_id"] = user_data.data["id"]
                     st.rerun()
                     
                 except Exception as e:
@@ -380,98 +370,55 @@ if "usuario" not in st.session_state:
 app_config = USUARIOS.get(st.session_state["usuario"], {}).get("app", {})
 NOMBRE_APP = app_config.get("nombre", "CRM Dashboard")
 # ── CARGAR DATOS ──
+# ── CARGAR DATOS DESDE SUPABASE ──
 @st.cache_data(ttl=300)
-def cargar_datos(sheet_ids):
+def cargar_datos(empresa_id):
     try:
-        client = get_gspread_client()
+        response = supabase.table("clientes")\
+            .select("*")\
+            .eq("empresa_id", empresa_id)\
+            .execute()
+
+        if not response.data:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(response.data)
+        df = df.rename(columns={
+            "comentarios": "Comentarios con llamada posterior a venta",
+            "nombre": "Nombre",
+            "tel": "Tel",
+            "direccion": "Dirección",
+            "origen": "Origen",
+            "monto": "Monto",
+            "servicio": "Servicio",
+            "fecha": "Fecha",
+            "año": "Año",
+            "cliente_id": "ID Cliente"
+        })
+        return df
+
     except Exception as e:
-        return pd.DataFrame(), [str(e)]
+        st.error(f"Error cargando datos: {e}")
+        return pd.DataFrame()
 
-    dfs = []
-    errores = []
-    columnas_base = [
-        "Fecha", "Nombre", "Tel", "Dirección",
-        "Origen", "Monto", "Servicio",
-        "Comentarios con llamada posterior a venta"
-    ]
+empresa_id = st.session_state.get("empresa_id", "")
+df = cargar_datos(empresa_id)
 
-    for año, sheet_id in sheet_ids.items():
-        if not sheet_id:
-            continue
-        for intento in range(3):
-            try:
-                sh = client.open_by_key(sheet_id)
-                worksheet = sh.get_worksheet(0)
-                data = worksheet.get_all_records()
-                df = pd.DataFrame(data)
-                if df.empty:
-                    df = pd.DataFrame(columns=columnas_base)
-                df["Año"] = año
-                dfs.append(df)
-                time.sleep(1)
-                break
-            except Exception as e:
-                errores.append(f"Año {año} intento {intento}: {e}")
-                if intento < 2:
-                    time.sleep(2)
-
-    if not dfs:
-        return pd.DataFrame(columns=columnas_base + ["Año"]), errores
-    return pd.concat(dfs, ignore_index=True), errores
-
-
-# ── CARGAR DATOS ──
-resultado = cargar_datos(st.session_state.get("SHEET_IDS", {}))
-df = resultado[0]
-errores_carga = resultado[1]
-
-if errores_carga:
-    for e in errores_carga:
-        st.error(e)
-
-st.caption(f"Filas cargadas: {len(df)}")
-
-# ─────────────────────────────
-# 🔥 FALLBACK (SI NO HAY DATOS)
-# ─────────────────────────────
 if df is None or df.empty:
     df = pd.DataFrame({
-        "Nombre": [],
-        "Tel": [],
-        "Fecha": [],
-        "Monto": [],
-        "Servicio": [],
-        "Origen": [],
-        "Comentarios con llamada posterior a venta": [],
-        "Año": []
+        "Nombre": [], "Tel": [], "Fecha": [], "Monto": [],
+        "Servicio": [], "Origen": [],
+        "Comentarios con llamada posterior a venta": [], "Año": []
     })
-    st.warning("⚠️ No hay datos conectados aún.")
 
-# ─────────────────────────────
-# 🔥 LIMPIEZA SIEMPRE
-# ─────────────────────────────
-df.columns = df.columns.str.strip()
 df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")
-
-df["Monto"] = (
-    df["Monto"]
-    .astype(str)
-    .str.replace("$", "", regex=False)
-    .str.replace(",", "", regex=False)
-    .str.strip()
-)
-
 df["Monto"] = pd.to_numeric(df["Monto"], errors="coerce")
 df["Mes"] = df["Fecha"].dt.month
+df["Año"] = pd.to_numeric(df["Año"], errors="coerce").astype("Int64")
 
-# ─────────────────────────────
-# 🔥 AÑOS DINÁMICOS
-# ─────────────────────────────
-años_disponibles = sorted(df["Año"].dropna().unique())
-
+años_disponibles = sorted(df["Año"].dropna().unique().tolist())
 if not años_disponibles:
     años_disponibles = [datetime.now().year]
-
 años_sin_2026 = años_disponibles
 # ── SIDEBAR ──
 with st.sidebar:
