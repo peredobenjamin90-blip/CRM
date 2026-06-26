@@ -72,79 +72,6 @@ def get_gspread_client():
     )
     return gspread.authorize(creds)
 import time
-
-@st.cache_data(ttl=600)
-def cargar_datos(sheet_ids):
-    try:
-        client = get_gspread_client()
-    except Exception as e:
-        return pd.DataFrame(), [str(e)]
-
-    dfs = []
-    errores = []
-    columnas_base = [
-        "Fecha", "Nombre", "Tel", "Dirección",
-        "Origen", "Monto", "Servicio",
-        "Comentarios con llamada posterior a venta"
-    ]
-
-    sheet_items = list(sheet_ids.items())
-
-    for idx, (año, sheet_id) in enumerate(sheet_items):
-        if not sheet_id:
-            continue
-
-        if idx > 0:
-            time.sleep(2)
-
-        for intento in range(3):
-            try:
-                sh = client.open_by_key(sheet_id)
-                worksheet = sh.get_worksheet(0)
-
-                valores = worksheet.get_all_values()
-
-                if not valores or len(valores) < 2:
-                    df = pd.DataFrame(columns=columnas_base)
-                    df["Año"] = año
-                    dfs.append(df)
-                    break
-
-                headers = valores[0]
-                filas = valores[1:]
-
-                # Limpiar headers duplicados, vacíos o con solo espacios
-                headers_limpios = []
-                conteo = {}
-                for h in headers:
-                    h = h.strip()
-                    if h == "":
-                        h = "Col_vacia"
-                    if h in conteo:
-                        conteo[h] += 1
-                        h = f"{h}_{conteo[h]}"
-                    else:
-                        conteo[h] = 0
-                    headers_limpios.append(h)
-
-                df = pd.DataFrame(filas, columns=headers_limpios)
-                df["Año"] = año
-                dfs.append(df)
-                break
-
-            except Exception as e:
-                error_str = str(e)
-                errores.append(f"Año {año} intento {intento}: {error_str}")
-
-                if "429" in error_str:
-                    wait = (intento + 1) * 10
-                    time.sleep(wait)
-                elif intento < 2:
-                    time.sleep(3)
-
-    if not dfs:
-        return pd.DataFrame(columns=columnas_base + ["Año"]), errores
-    return pd.concat(dfs, ignore_index=True), errores
 def asignar_ids_clientes():
     import unicodedata
 
@@ -366,6 +293,10 @@ if "usuario" not in st.session_state:
     login()
     st.stop()
 
+# Limpiar cache al entrar por primera vez
+if "cache_limpiado" not in st.session_state:
+    st.cache_data.clear()
+    st.session_state["cache_limpiado"] = True
 # Cargar config dinámica del usuario desde USUARIOS mientras migras
 app_config = USUARIOS.get(st.session_state["usuario"], {}).get("app", {})
 NOMBRE_APP = app_config.get("nombre", "CRM Dashboard")
@@ -403,7 +334,8 @@ def cargar_datos(empresa_id):
 
 empresa_id = st.session_state.get("empresa_id", "")
 df = cargar_datos(empresa_id)
-
+st.write("empresa_id:", empresa_id)
+st.write("filas:", len(df))
 if df is None or df.empty:
     df = pd.DataFrame({
         "Nombre": [], "Tel": [], "Fecha": [], "Monto": [],
