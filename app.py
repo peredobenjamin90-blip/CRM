@@ -313,6 +313,7 @@ def cargar_datos(empresa_id, access_token):
         response = client.table("clientes")\
             .select("*")\
             .eq("empresa_id", empresa_id)\
+            .limit(5000)\
             .execute()
 
         if not response.data:
