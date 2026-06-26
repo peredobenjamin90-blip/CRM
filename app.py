@@ -270,21 +270,21 @@ def login():
                         "email": email,
                         "password": password
                     })
-                    
-                    # Obtener datos del usuario de tu tabla usuarios
+
                     user_data = supabase.table("usuarios")\
                         .select("*")\
                         .eq("auth_id", response.user.id)\
                         .single()\
                         .execute()
-                    
+
                     st.session_state["usuario"] = user_data.data["username"]
                     st.session_state["empresa"] = user_data.data["empresa"]
                     st.session_state["sistema"] = user_data.data["sistema"]
                     st.session_state["auth_id"] = str(response.user.id)
                     st.session_state["empresa_id"] = user_data.data["id"]
+                    st.session_state["access_token"] = response.session.access_token
                     st.rerun()
-                    
+
                 except Exception as e:
                     st.error("Email o contraseña incorrectos")
 
@@ -293,19 +293,24 @@ if "usuario" not in st.session_state:
     login()
     st.stop()
 
-# Limpiar cache al entrar por primera vez
 if "cache_limpiado" not in st.session_state:
     st.cache_data.clear()
     st.session_state["cache_limpiado"] = True
-# Cargar config dinámica del usuario desde USUARIOS mientras migras
+
 app_config = USUARIOS.get(st.session_state["usuario"], {}).get("app", {})
 NOMBRE_APP = app_config.get("nombre", "CRM Dashboard")
-# ── CARGAR DATOS ──
+
 # ── CARGAR DATOS DESDE SUPABASE ──
 @st.cache_data(ttl=300)
-def cargar_datos(empresa_id):
+def cargar_datos(empresa_id, access_token):
     try:
-        response = supabase.table("clientes")\
+        client = create_client(
+            st.secrets["SUPABASE_URL"],
+            st.secrets["SUPABASE_KEY"]
+        )
+        client.postgrest.auth(access_token)
+
+        response = client.table("clientes")\
             .select("*")\
             .eq("empresa_id", empresa_id)\
             .execute()
@@ -333,9 +338,9 @@ def cargar_datos(empresa_id):
         return pd.DataFrame()
 
 empresa_id = st.session_state.get("empresa_id", "")
-df = cargar_datos(empresa_id)
-st.write("empresa_id:", empresa_id)
-st.write("filas:", len(df))
+access_token = st.session_state.get("access_token", "")
+df = cargar_datos(empresa_id, access_token)
+
 if df is None or df.empty:
     df = pd.DataFrame({
         "Nombre": [], "Tel": [], "Fecha": [], "Monto": [],
