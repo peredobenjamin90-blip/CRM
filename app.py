@@ -1464,12 +1464,15 @@ elif pagina == "Agenda":
     else:
         for _, row in df_dia.iterrows():
             with st.container():
+                realizado = row.get("realizado", False)
+                estado = "✅ Realizado" if realizado else "⏳ Pendiente"
                 st.markdown(f"""
                 **👤 Cliente:** {row.get('Nombre','')}  
                 **📞 Tel:** {row.get('Tel','')}  
                 **📍 Dirección:** {row.get('Dirección','')}  
                 **🧼 Servicio:** {row.get('Servicio','')}  
-                **💰 Monto:** ${row.get('Monto',0):,.0f}
+                **💰 Monto:** ${row.get('Monto',0):,.0f}  
+                **Estado:** {estado}
                 """)
                 tel = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
                 if tel and tel != "nan":
@@ -1522,7 +1525,6 @@ elif pagina == "Agenda":
                 st.error("El nombre del cliente es obligatorio.")
             else:
                 try:
-                    # Insertar en Supabase
                     supabase.table("clientes").insert({
                         "empresa_id": st.session_state["empresa_id"],
                         "nombre": nombre,
@@ -1532,10 +1534,11 @@ elif pagina == "Agenda":
                         "fecha": fecha.isoformat(),
                         "monto": float(monto),
                         "origen": "Agenda",
-                        "año": fecha.year
+                        "año": fecha.year,
+                        "realizado": False
                     }).execute()
 
-                    st.success(f"✅ Servicio agendado para {nombre} el {fecha.strftime('%d/%m/%Y')}")
+                    st.success(f"✅ Servicio agendado para {nombre} el {fecha.strftime('%d/%m/%Y')} — se guardará en Sheets cuando se marque como realizado.")
                     st.cache_data.clear()
                     if "evento_seleccionado" in st.session_state:
                         del st.session_state["evento_seleccionado"]
@@ -1548,7 +1551,6 @@ elif pagina == "Agenda":
 
     st.markdown("---")
 
-    # ── CALENDARIO DESDE SUPABASE ──
     from streamlit_calendar import calendar
 
     st.markdown("### 📅 Calendario de servicios")
@@ -1558,10 +1560,14 @@ elif pagina == "Agenda":
 
     eventos = []
     for _, row in df_cal.iterrows():
+        realizado = row.get("realizado", False)
+        color = "#2B5BAA" if realizado else "#F59E0B"
         eventos.append({
-            "title": f"{row.get('Nombre', '')} — {row.get('Servicio', '')}",
+            "title": f"{'✅' if realizado else '⏳'} {row.get('Nombre', '')} — {row.get('Servicio', '')}",
             "start": row["Fecha"].strftime("%Y-%m-%d"),
             "end": row["Fecha"].strftime("%Y-%m-%d"),
+            "backgroundColor": color,
+            "borderColor": color,
             "extendedProps": {
                 "id": str(row.get("id", "")),
             }
@@ -1598,6 +1604,8 @@ elif pagina == "Agenda":
 
         if not df_evento.empty:
             row = df_evento.iloc[0]
+            realizado = row.get("realizado", False)
+
             st.markdown("---")
             st.markdown("### 📋 Detalle del servicio")
 
@@ -1610,7 +1618,8 @@ elif pagina == "Agenda":
                 **🧼 Servicio:** {row.get('Servicio','')}  
                 **📅 Fecha:** {row['Fecha'].strftime('%d/%m/%Y')}  
                 **💰 Monto:** ${row.get('Monto', 0):,.0f}  
-                **💬 Comentarios:** {row.get('Comentarios con llamada posterior a venta','')}
+                **💬 Comentarios:** {row.get('Comentarios con llamada posterior a venta','')}  
+                **Estado:** {'✅ Realizado' if realizado else '⏳ Pendiente'}
                 """)
             with col2:
                 if st.button("✖ Cerrar detalle", use_container_width=True):
@@ -1624,6 +1633,77 @@ elif pagina == "Agenda":
                 mensaje = mensaje_template.format(nombre=row.get("Nombre", ""), empresa=empresa)
                 url = f"https://wa.me/{tel_ev}?text={urllib.parse.quote(mensaje)}"
                 st.markdown(f"[💬 Enviar WhatsApp]({url})")
+
+            # ── MARCAR COMO REALIZADO ──
+            if not realizado:
+                if st.button("✅ Marcar como realizado y guardar en Sheets", use_container_width=True, type="primary"):
+                    try:
+                        # 1. Actualizar en Supabase
+                        supabase.table("clientes").update({
+                            "realizado": True
+                        }).eq("id", id_click).execute()
+
+                        # 2. Escribir en Google Sheets
+                        if fecha.year if hasattr(fecha, 'year') else row["Fecha"].year in SHEET_IDS:
+                            año_row = int(row.get("Año", row["Fecha"].year))
+                            if año_row in SHEET_IDS:
+                                client = get_gspread_client()
+                                sheet_id = SHEET_IDS[año_row]
+                                sh = client.open_by_key(sheet_id)
+                                worksheet = sh.get_worksheet(0)
+
+                                col_b = worksheet.col_values(2)
+                                ultimo_folio = 0
+                                for v in col_b[1:]:
+                                    try:
+                                        num = int(str(v).strip().split("/")[0])
+                                        if num < 10000:
+                                            ultimo_folio = max(ultimo_folio, num)
+                                    except:
+                                        continue
+
+                                siguiente_folio = ultimo_folio + 1
+                                folio_interno = f"{siguiente_folio}/{str(año_row)[-2:]}"
+
+                                nueva_fila = [
+                                    siguiente_folio,
+                                    folio_interno,
+                                    row["Fecha"].strftime("%m/%d/%Y"),
+                                    row.get("Nombre", ""),
+                                    row.get("Tel", ""),
+                                    row.get("Dirección", ""),
+                                    row.get("Origen", "Agenda"),
+                                    row.get("Monto", 0),
+                                    row.get("Servicio", ""),
+                                    "", "", "", ""
+                                ]
+
+                                col_c = worksheet.col_values(3)
+                                datos_col_c = col_c[1:]
+                                primera_vacia = None
+                                for i, v in enumerate(datos_col_c):
+                                    if str(v).strip() == "":
+                                        primera_vacia = i + 2
+                                        break
+                                if primera_vacia is None:
+                                    primera_vacia = len(datos_col_c) + 2
+
+                                worksheet.insert_row(nueva_fila, primera_vacia)
+                                st.success("✅ Servicio marcado como realizado y guardado en Sheets.")
+                            else:
+                                st.success("✅ Marcado como realizado en Supabase. No hay sheet configurado para este año.")
+                        
+                        st.cache_data.clear()
+                        del st.session_state["evento_seleccionado"]
+                        st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
+                        import time as t
+                        t.sleep(1)
+                        st.rerun()
+
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+            else:
+                st.success("✅ Este servicio ya fue realizado y guardado en Sheets.")
 
             st.markdown("#### ✏️ Corregir fecha del servicio")
             with st.form("editar_fecha_form"):
