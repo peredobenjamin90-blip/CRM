@@ -1434,6 +1434,8 @@ elif pagina == "Agenda":
     st.title("📅 Agenda de Servicios")
     import urllib.parse
 
+    SHEET_IDS = USUARIOS[st.session_state["usuario"]].get("sheets", {})
+
     def parsear_fechas(serie):
         resultado = pd.to_datetime(serie, errors="coerce", format="%m/%d/%Y")
         mask = resultado.isna()
@@ -1442,15 +1444,12 @@ elif pagina == "Agenda":
         return resultado
 
     df_a = df.copy()
-    df_a["Fecha"] = parsear_fechas(df_a["Fecha"])
+    df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce")
     df_a["Monto"] = pd.to_numeric(df_a["Monto"], errors="coerce")
 
     plantillas = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
     empresa = st.session_state.get("empresa", "")
 
-    # ─────────────────────────────
-    # 📅 SELECCIÓN DE FECHA
-    # ─────────────────────────────
     fecha_sel = st.date_input("Selecciona una fecha", datetime.now(), key="agenda_fecha_1")
     df_dia = df_a[df_a["Fecha"].dt.date == fecha_sel]
 
@@ -1483,20 +1482,15 @@ elif pagina == "Agenda":
                     st.warning("Cliente sin teléfono")
                 st.markdown("---")
 
-    # ─────────────────────────────
-    # ➕ AGENDAR NUEVO SERVICIO
-    # ─────────────────────────────
     st.markdown("### ➕ Agendar nuevo servicio")
 
-    clientes_info = (
-        df_a.groupby("Nombre").agg(
-            Telefonos=("Tel", lambda x: " / ".join(
-                str(t) for t in x.dropna().unique()
-                if str(t).strip() not in ["", "nan"]
-            )),
-            Direccion=("Dirección", "last")
-        ).reset_index()
-    )
+    clientes_info = df_a.groupby("Nombre").agg(
+        Telefonos=("Tel", lambda x: " / ".join(
+            str(t) for t in x.dropna().unique()
+            if str(t).strip() not in ["", "nan"]
+        )),
+        Direccion=("Dirección", "last")
+    ).reset_index()
     clientes_lista = [""] + clientes_info["Nombre"].tolist()
 
     cliente_sel = st.selectbox("Cliente existente (opcional)", clientes_lista, key="cliente_agenda_sel")
@@ -1526,57 +1520,27 @@ elif pagina == "Agenda":
         if submitted:
             if not nombre.strip():
                 st.error("El nombre del cliente es obligatorio.")
-            elif fecha.year not in st.session_state.get("SHEET_IDS", {}):
-                st.error(f"No hay sheet configurado para el año {fecha.year}.")
             else:
                 try:
-                    client = get_gspread_client()
-                    sheet_id = st.session_state["SHEET_IDS"][fecha.year]
-                    sh = client.open_by_key(sheet_id)
-                    worksheet = sh.get_worksheet(0)
-
-                    col_b = worksheet.col_values(2)
-                    ultimo_folio = 0
-                    for v in col_b[1:]:
-                        try:
-                            num = int(str(v).strip().split("/")[0])
-                            if num < 10000:
-                                ultimo_folio = max(ultimo_folio, num)
-                        except:
-                            continue
-
-                    siguiente_folio = ultimo_folio + 1
-                    folio_interno = f"{siguiente_folio}/{str(fecha.year)[-2:]}"
-
-                    nueva_fila = [
-                        siguiente_folio,
-                        folio_interno,
-                        fecha.strftime("%m/%d/%Y"),
-                        nombre, telefono, direccion,
-                        "Agenda", monto, servicio,
-                        "", "", "", ""
-                    ]
-
-                    col_c = worksheet.col_values(3)
-                    datos_col_c = col_c[1:]
-                    primera_vacia = None
-                    for i, v in enumerate(datos_col_c):
-                        if str(v).strip() == "":
-                            primera_vacia = i + 2
-                            break
-                    if primera_vacia is None:
-                        primera_vacia = len(datos_col_c) + 2
-
-                    worksheet.insert_row(nueva_fila, primera_vacia)
+                    # Insertar en Supabase
+                    supabase.table("clientes").insert({
+                        "empresa_id": st.session_state["empresa_id"],
+                        "nombre": nombre,
+                        "tel": telefono,
+                        "direccion": direccion,
+                        "servicio": servicio,
+                        "fecha": fecha.isoformat(),
+                        "monto": float(monto),
+                        "origen": "Agenda",
+                        "año": fecha.year
+                    }).execute()
 
                     st.success(f"✅ Servicio agendado para {nombre} el {fecha.strftime('%d/%m/%Y')}")
                     st.cache_data.clear()
-                    st.cache_resource.clear()
-                    # Limpiar evento seleccionado para no confundir
                     if "evento_seleccionado" in st.session_state:
                         del st.session_state["evento_seleccionado"]
                     import time as t
-                    t.sleep(2)
+                    t.sleep(1)
                     st.rerun()
 
                 except Exception as e:
@@ -1584,53 +1548,12 @@ elif pagina == "Agenda":
 
     st.markdown("---")
 
-    # ─────────────────────────────
-    # 📅 CALENDARIO
-    # ─────────────────────────────
+    # ── CALENDARIO DESDE SUPABASE ──
     from streamlit_calendar import calendar
 
     st.markdown("### 📅 Calendario de servicios")
 
-    @st.cache_data(ttl=300)
-    def cargar_datos_calendario(sheet_ids_tuple):
-        # Recibe tuple para que sea hasheable por cache
-        sheet_ids = dict(sheet_ids_tuple)
-        client = get_gspread_client()
-        dfs = []
-        columnas_base = [
-            "Fecha", "Nombre", "Tel", "Dirección",
-            "Origen", "Monto", "Servicio",
-            "Comentarios con llamada posterior a venta"
-        ]
-        for año, sheet_id in sheet_ids.items():
-            if not sheet_id:
-                continue
-            try:
-                sh = client.open_by_key(sheet_id)
-                worksheet = sh.get_worksheet(0)
-                data = worksheet.get_all_records()
-                df_tmp = pd.DataFrame(data)
-                if df_tmp.empty:
-                    df_tmp = pd.DataFrame(columns=columnas_base)
-                df_tmp["Año"] = año
-                dfs.append(df_tmp)
-                time.sleep(1)
-            except Exception:
-                continue
-        if not dfs:
-            return pd.DataFrame(columns=columnas_base + ["Año"])
-        return pd.concat(dfs, ignore_index=True)
-
-    sheet_ids_tuple = tuple(sorted(st.session_state.get("SHEET_IDS", {}).items()))
-
-    with st.spinner("Cargando calendario..."):
-        df_cal_raw = cargar_datos_calendario(sheet_ids_tuple)
-
-    df_cal_raw.columns = df_cal_raw.columns.str.strip()
-    df_cal_raw["Fecha"] = parsear_fechas(df_cal_raw["Fecha"])
-    if "Monto" in df_cal_raw.columns:
-        df_cal_raw["Monto"] = pd.to_numeric(df_cal_raw["Monto"], errors="coerce")
-    df_cal = df_cal_raw[df_cal_raw["Fecha"].dt.year >= 2021].copy()
+    df_cal = df_a[df_a["Fecha"].dt.year >= 2021].copy()
     df_cal = df_cal.dropna(subset=["Fecha"])
 
     eventos = []
@@ -1640,8 +1563,7 @@ elif pagina == "Agenda":
             "start": row["Fecha"].strftime("%Y-%m-%d"),
             "end": row["Fecha"].strftime("%Y-%m-%d"),
             "extendedProps": {
-                "folio": str(row.get("Folio sistema", "")),
-                "año": int(row.get("Año", 0))
+                "id": str(row.get("id", "")),
             }
         })
 
@@ -1662,33 +1584,20 @@ elif pagina == "Agenda":
         key=f"calendario_principal_{st.session_state.get('agenda_refresh', 0)}"
     )
 
-    # ── Guardar evento clickeado en session_state para que persista ──
     if resultado_cal and resultado_cal.get("eventClick"):
         evento_click = resultado_cal["eventClick"]["event"]
-        folio_click = evento_click.get("extendedProps", {}).get("folio")
-        año_click = evento_click.get("extendedProps", {}).get("año")
-        if folio_click and año_click:
-            st.session_state["evento_seleccionado"] = {
-                "folio": folio_click,
-                "año": año_click
-            }
+        id_click = evento_click.get("extendedProps", {}).get("id")
+        if id_click:
+            st.session_state["evento_seleccionado"] = {"id": id_click}
 
-    # ─────────────────────────────
-    # 📋 DETALLE DEL EVENTO — persiste entre reruns
-    # ─────────────────────────────
     if "evento_seleccionado" in st.session_state:
         ev = st.session_state["evento_seleccionado"]
-        folio_click = ev["folio"]
-        año_click = ev["año"]
+        id_click = ev["id"]
 
-        df_evento = df_cal[
-            (df_cal["Folio sistema"].astype(str) == str(folio_click)) &
-            (df_cal["Año"] == año_click)
-        ]
+        df_evento = df_cal[df_cal["id"].astype(str) == str(id_click)]
 
         if not df_evento.empty:
             row = df_evento.iloc[0]
-
             st.markdown("---")
             st.markdown("### 📋 Detalle del servicio")
 
@@ -1716,13 +1625,9 @@ elif pagina == "Agenda":
                 url = f"https://wa.me/{tel_ev}?text={urllib.parse.quote(mensaje)}"
                 st.markdown(f"[💬 Enviar WhatsApp]({url})")
 
-            # ── EDITAR FECHA ──
             st.markdown("#### ✏️ Corregir fecha del servicio")
             with st.form("editar_fecha_form"):
-                nueva_fecha = st.date_input(
-                    "Nueva fecha:",
-                    value=row["Fecha"].date()
-                )
+                nueva_fecha = st.date_input("Nueva fecha:", value=row["Fecha"].date())
                 confirmar_edicion = st.form_submit_button("📅 Cambiar fecha", use_container_width=True)
 
                 if confirmar_edicion:
@@ -1730,31 +1635,21 @@ elif pagina == "Agenda":
                         st.warning("La fecha es la misma, no hay nada que cambiar.")
                     else:
                         try:
-                            client = get_gspread_client()
-                            sheet_id = st.session_state["SHEET_IDS"][año_click]
-                            sh = client.open_by_key(sheet_id)
-                            worksheet = sh.get_worksheet(0)
+                            supabase.table("clientes").update({
+                                "fecha": nueva_fecha.isoformat(),
+                                "año": nueva_fecha.year
+                            }).eq("id", id_click).execute()
 
-                            celdas = worksheet.findall(str(folio_click))
-                            if celdas:
-                                fila_num = celdas[0].row
-                                # Columna C = Fecha (índice 3)
-                                worksheet.update_cell(fila_num, 3, nueva_fecha.strftime("%m/%d/%Y"))
-                                st.success(f"✅ Fecha cambiada a {nueva_fecha.strftime('%d/%m/%Y')}")
-                                st.cache_data.clear()
-                                del st.session_state["evento_seleccionado"]
-                                st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
-                                import time as t
-                                t.sleep(1)
-                                st.rerun()
-                            else:
-                                st.error("No se encontró el servicio en el sheet. Verifica el folio.")
-                        except KeyError:
-                            st.error(f"No hay sheet configurado para el año {año_click}.")
+                            st.success(f"✅ Fecha cambiada a {nueva_fecha.strftime('%d/%m/%Y')}")
+                            st.cache_data.clear()
+                            del st.session_state["evento_seleccionado"]
+                            st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
+                            import time as t
+                            t.sleep(1)
+                            st.rerun()
                         except Exception as e:
                             st.error(f"Error al cambiar fecha: {e}")
 
-            # ── BORRAR SERVICIO ──
             st.markdown("#### 🗑️ Eliminar servicio")
             with st.form("borrar_form"):
                 st.warning("Esta acción no se puede deshacer.")
@@ -1766,31 +1661,18 @@ elif pagina == "Agenda":
                         st.error("Marca la casilla de confirmación antes de eliminar.")
                     else:
                         try:
-                            client = get_gspread_client()
-                            sheet_id = st.session_state["SHEET_IDS"][año_click]
-                            sh = client.open_by_key(sheet_id)
-                            worksheet = sh.get_worksheet(0)
-
-                            celdas = worksheet.findall(str(folio_click))
-                            if celdas:
-                                worksheet.delete_rows(celdas[0].row)
-                                st.success("✅ Servicio eliminado correctamente.")
-                                st.cache_data.clear()
-                                st.cache_resource.clear()
-                                del st.session_state["evento_seleccionado"]
-                                st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
-                                import time as t
-                                t.sleep(1)
-                                st.rerun()
-                            else:
-                                st.error("No se encontró el servicio en el sheet.")
-                        except KeyError:
-                            st.error(f"No hay sheet configurado para el año {año_click}.")
+                            supabase.table("clientes").delete().eq("id", id_click).execute()
+                            st.success("✅ Servicio eliminado correctamente.")
+                            st.cache_data.clear()
+                            del st.session_state["evento_seleccionado"]
+                            st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
+                            import time as t
+                            t.sleep(1)
+                            st.rerun()
                         except Exception as e:
                             st.error(f"Error al eliminar: {e}")
         else:
-            # El folio no se encontró — limpiar para no dejar estado sucio
-            st.warning("No se encontró el servicio seleccionado. Puede que ya haya sido eliminado.")
+            st.warning("No se encontró el servicio seleccionado.")
             if st.button("Limpiar selección"):
                 del st.session_state["evento_seleccionado"]
                 st.rerun()
