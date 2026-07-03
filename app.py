@@ -27,36 +27,119 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    [data-testid="stSidebar"] { background-color: #2B5BAA; }
-    [data-testid="stSidebar"] * { color: white !important; }
-    [data-testid="stSidebar"] > div:first-child {
-        padding-top: 0rem !important;
+    /* ── FONDO GENERAL ── */
+    .stApp {
+        background-color: #0F1117;
+        color: #E8EAF0;
     }
-    section[data-testid="stSidebar"] > div {
-        padding-top: 0.5rem !important;
+
+    /* ── SIDEBAR ── */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1A1D2E 0%, #0F1117 100%);
+        border-right: 1px solid #2D2F3E;
     }
+    [data-testid="stSidebar"] * { color: #E8EAF0 !important; }
+    [data-testid="stSidebar"] > div:first-child { padding-top: 0rem !important; }
+    section[data-testid="stSidebar"] > div { padding-top: 0.5rem !important; }
+
+    /* ── MÉTRICAS ── */
     [data-testid="stMetric"] {
-        background: transparent !important;
+        background: linear-gradient(135deg, #1A1D2E 0%, #16192A 100%) !important;
         border-radius: 12px;
         padding: 16px;
-        border-left: 4px solid #2B5BAA;
-        border: 1px solid rgba(43, 91, 170, 0.3);
+        border: 1px solid #2D2F3E;
+        border-top: 2px solid #6C63FF;
     }
     [data-testid="stMetricValue"] {
         font-size: clamp(14px, 2vw, 28px) !important;
+        color: #FFFFFF !important;
     }
-    h1 { color: #2B5BAA; }
-    h2, h3 { color: #4a7fd4; }
+    [data-testid="stMetricLabel"] {
+        color: #8B8FA8 !important;
+    }
+
+    /* ── TÍTULOS ── */
+    h1 { 
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.5px;
+    }
+    h2, h3 { 
+        color: #A78BFA !important;
+        font-weight: 600 !important;
+    }
+
+    /* ── BOTONES ── */
     .stButton > button {
-        background-color: #2B5BAA;
+        background: linear-gradient(135deg, #6C63FF 0%, #A78BFA 100%);
         color: white !important;
         border: none;
         border-radius: 8px;
         padding: 10px 24px;
-        font-size: 16px;
+        font-size: 15px;
         width: 100%;
+        font-weight: 500;
+        transition: opacity 0.2s;
     }
-    .stButton > button:hover { background-color: #1a3d6e; }
+    .stButton > button:hover { 
+        opacity: 0.85;
+        border: none;
+    }
+
+    /* ── INPUTS ── */
+    .stTextInput > div > div > input,
+    .stNumberInput > div > div > input,
+    .stSelectbox > div > div {
+        background-color: #1A1D2E !important;
+        border: 1px solid #2D2F3E !important;
+        border-radius: 8px !important;
+        color: #E8EAF0 !important;
+    }
+
+    /* ── DATAFRAME ── */
+    .stDataFrame {
+        border: 1px solid #2D2F3E;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    /* ── DIVISORES ── */
+    hr {
+        border-color: #2D2F3E !important;
+    }
+
+    /* ── EXPANDER ── */
+    .streamlit-expanderHeader {
+        background-color: #1A1D2E !important;
+        border: 1px solid #2D2F3E !important;
+        border-radius: 8px !important;
+        color: #E8EAF0 !important;
+    }
+
+    /* ── CAPTION ── */
+    .stCaption { color: #8B8FA8 !important; }
+
+    /* ── SUCCESS / ERROR / WARNING ── */
+    .stSuccess { 
+        background-color: #0D2818 !important;
+        border: 1px solid #10B981 !important;
+        border-radius: 8px !important;
+    }
+    .stError {
+        background-color: #2D0F0F !important;
+        border: 1px solid #EF4444 !important;
+        border-radius: 8px !important;
+    }
+    .stWarning {
+        background-color: #2D1F0F !important;
+        border: 1px solid #F59E0B !important;
+        border-radius: 8px !important;
+    }
+    .stInfo {
+        background-color: #0F1D2D !important;
+        border: 1px solid #6C63FF !important;
+        border-radius: 8px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
