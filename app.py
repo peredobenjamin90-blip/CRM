@@ -1436,6 +1436,14 @@ elif pagina == "Agenda":
 
     SHEET_IDS = USUARIOS[st.session_state["usuario"]].get("sheets", {})
 
+    def get_supabase_auth():
+        client_auth = create_client(
+            st.secrets["SUPABASE_URL"],
+            st.secrets["SUPABASE_KEY"]
+        )
+        client_auth.postgrest.auth(st.session_state.get("access_token", ""))
+        return client_auth
+
     def parsear_fechas(serie):
         resultado = pd.to_datetime(serie, errors="coerce", format="%m/%d/%Y")
         mask = resultado.isna()
@@ -1525,7 +1533,8 @@ elif pagina == "Agenda":
                 st.error("El nombre del cliente es obligatorio.")
             else:
                 try:
-                    supabase.table("clientes").insert({
+                    client_auth = get_supabase_auth()
+                    client_auth.table("clientes").insert({
                         "empresa_id": st.session_state["empresa_id"],
                         "nombre": nombre,
                         "tel": telefono,
@@ -1634,65 +1643,62 @@ elif pagina == "Agenda":
                 url = f"https://wa.me/{tel_ev}?text={urllib.parse.quote(mensaje)}"
                 st.markdown(f"[💬 Enviar WhatsApp]({url})")
 
-            # ── MARCAR COMO REALIZADO ──
             if not realizado:
                 if st.button("✅ Marcar como realizado y guardar en Sheets", use_container_width=True, type="primary"):
                     try:
-                        # 1. Actualizar en Supabase
-                        supabase.table("clientes").update({
+                        client_auth = get_supabase_auth()
+                        client_auth.table("clientes").update({
                             "realizado": True
                         }).eq("id", id_click).execute()
 
-                        # 2. Escribir en Google Sheets
-                        if fecha.year if hasattr(fecha, 'year') else row["Fecha"].year in SHEET_IDS:
-                            año_row = int(row.get("Año", row["Fecha"].year))
-                            if año_row in SHEET_IDS:
-                                client = get_gspread_client()
-                                sheet_id = SHEET_IDS[año_row]
-                                sh = client.open_by_key(sheet_id)
-                                worksheet = sh.get_worksheet(0)
+                        año_row = int(row.get("Año", row["Fecha"].year))
+                        if año_row in SHEET_IDS:
+                            client_gs = get_gspread_client()
+                            sheet_id = SHEET_IDS[año_row]
+                            sh = client_gs.open_by_key(sheet_id)
+                            worksheet = sh.get_worksheet(0)
 
-                                col_b = worksheet.col_values(2)
-                                ultimo_folio = 0
-                                for v in col_b[1:]:
-                                    try:
-                                        num = int(str(v).strip().split("/")[0])
-                                        if num < 10000:
-                                            ultimo_folio = max(ultimo_folio, num)
-                                    except:
-                                        continue
+                            col_b = worksheet.col_values(2)
+                            ultimo_folio = 0
+                            for v in col_b[1:]:
+                                try:
+                                    num = int(str(v).strip().split("/")[0])
+                                    if num < 10000:
+                                        ultimo_folio = max(ultimo_folio, num)
+                                except:
+                                    continue
 
-                                siguiente_folio = ultimo_folio + 1
-                                folio_interno = f"{siguiente_folio}/{str(año_row)[-2:]}"
+                            siguiente_folio = ultimo_folio + 1
+                            folio_interno = f"{siguiente_folio}/{str(año_row)[-2:]}"
 
-                                nueva_fila = [
-                                    siguiente_folio,
-                                    folio_interno,
-                                    row["Fecha"].strftime("%m/%d/%Y"),
-                                    row.get("Nombre", ""),
-                                    row.get("Tel", ""),
-                                    row.get("Dirección", ""),
-                                    row.get("Origen", "Agenda"),
-                                    row.get("Monto", 0),
-                                    row.get("Servicio", ""),
-                                    "", "", "", ""
-                                ]
+                            nueva_fila = [
+                                siguiente_folio,
+                                folio_interno,
+                                row["Fecha"].strftime("%m/%d/%Y"),
+                                row.get("Nombre", ""),
+                                row.get("Tel", ""),
+                                row.get("Dirección", ""),
+                                row.get("Origen", "Agenda"),
+                                row.get("Monto", 0),
+                                row.get("Servicio", ""),
+                                "", "", "", ""
+                            ]
 
-                                col_c = worksheet.col_values(3)
-                                datos_col_c = col_c[1:]
-                                primera_vacia = None
-                                for i, v in enumerate(datos_col_c):
-                                    if str(v).strip() == "":
-                                        primera_vacia = i + 2
-                                        break
-                                if primera_vacia is None:
-                                    primera_vacia = len(datos_col_c) + 2
+                            col_c = worksheet.col_values(3)
+                            datos_col_c = col_c[1:]
+                            primera_vacia = None
+                            for i, v in enumerate(datos_col_c):
+                                if str(v).strip() == "":
+                                    primera_vacia = i + 2
+                                    break
+                            if primera_vacia is None:
+                                primera_vacia = len(datos_col_c) + 2
 
-                                worksheet.insert_row(nueva_fila, primera_vacia)
-                                st.success("✅ Servicio marcado como realizado y guardado en Sheets.")
-                            else:
-                                st.success("✅ Marcado como realizado en Supabase. No hay sheet configurado para este año.")
-                        
+                            worksheet.insert_row(nueva_fila, primera_vacia)
+                            st.success("✅ Servicio marcado como realizado y guardado en Sheets.")
+                        else:
+                            st.success("✅ Marcado como realizado. No hay sheet configurado para este año.")
+
                         st.cache_data.clear()
                         del st.session_state["evento_seleccionado"]
                         st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
@@ -1715,7 +1721,8 @@ elif pagina == "Agenda":
                         st.warning("La fecha es la misma, no hay nada que cambiar.")
                     else:
                         try:
-                            supabase.table("clientes").update({
+                            client_auth = get_supabase_auth()
+                            client_auth.table("clientes").update({
                                 "fecha": nueva_fecha.isoformat(),
                                 "año": nueva_fecha.year
                             }).eq("id", id_click).execute()
@@ -1741,7 +1748,8 @@ elif pagina == "Agenda":
                         st.error("Marca la casilla de confirmación antes de eliminar.")
                     else:
                         try:
-                            supabase.table("clientes").delete().eq("id", id_click).execute()
+                            client_auth = get_supabase_auth()
+                            client_auth.table("clientes").delete().eq("id", id_click).execute()
                             st.success("✅ Servicio eliminado correctamente.")
                             st.cache_data.clear()
                             del st.session_state["evento_seleccionado"]
