@@ -767,23 +767,33 @@ elif pagina == "Clientes":
     df_hist = df.copy()
     df_hist["Monto"] = pd.to_numeric(df_hist["Monto"], errors="coerce")
     df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors="coerce")
+    df_hist["ID Cliente"] = pd.to_numeric(df_hist["ID Cliente"], errors="coerce")
 
-    historial = df_hist.groupby("Nombre").agg(
+    # Agrupar por ID Cliente para unir nombres distintos del mismo cliente
+    historial = df_hist.groupby("ID Cliente").agg(
+        Nombre=("Nombre", "last"),
         Total_Gastado=("Monto", "sum"),
         Servicios=("Monto", "count"),
         Ultima_Visita=("Fecha", "max"),
-        Ticket_Promedio=("Monto", "mean")
+        Ticket_Promedio=("Monto", "mean"),
+        Tel=("Tel", "last")
     ).reset_index()
 
     historial = historial.sort_values(by="Total_Gastado", ascending=False)
 
-    cliente_buscar = st.text_input("🔍 Buscar cliente", key=f"buscador_historial_{año_origen}")
+    cliente_buscar = st.text_input("🔍 Buscar cliente (nombre o ID)", key=f"buscador_historial_{año_origen}")
     if cliente_buscar:
         historial = historial[
-            historial["Nombre"].str.contains(cliente_buscar, case=False, na=False)
+            historial["Nombre"].str.contains(cliente_buscar, case=False, na=False) |
+            historial["ID Cliente"].astype(str).str.contains(cliente_buscar, na=False)
         ]
 
-    historial["Ultima_Visita"] = historial["Ultima_Visita"].dt.strftime("%d/%m/%Y")
+    # Formatear para mostrar
+    historial_mostrar = historial.copy()
+    historial_mostrar["Total_Gastado"] = historial_mostrar["Total_Gastado"].apply(lambda x: f"${x:,.0f}")
+    historial_mostrar["Ticket_Promedio"] = historial_mostrar["Ticket_Promedio"].apply(lambda x: f"${x:,.0f}" if pd.notnull(x) else "-")
+    historial_mostrar["Ultima_Visita"] = historial_mostrar["Ultima_Visita"].dt.strftime("%d/%m/%Y").fillna("-")
+    historial_mostrar = historial_mostrar[["ID Cliente", "Nombre", "Tel", "Total_Gastado", "Servicios", "Ultima_Visita", "Ticket_Promedio"]]
 
     st.markdown("### 🏆 Top clientes")
     top_clientes = historial.head(10)
@@ -795,7 +805,7 @@ elif pagina == "Clientes":
             "💵 Mayor gasto",
             f"${top_clientes.iloc[0]['Total_Gastado']:,.0f}" if not top_clientes.empty else "$0"
         )
-    st.dataframe(historial, use_container_width=True)
+    st.dataframe(historial_mostrar, use_container_width=True, hide_index=True)
 
     # 👤 PERFIL
     st.markdown("### 👤 Perfil del cliente")
@@ -803,9 +813,8 @@ elif pagina == "Clientes":
     cliente_sel = st.selectbox("Selecciona un cliente", clientes_lista)
 
     if cliente_sel:
-        df_cliente = df[df["Nombre"] == cliente_sel].copy()
-        df_cliente["Fecha"] = pd.to_datetime(df_cliente["Fecha"], errors="coerce")
-        df_cliente["Monto"] = pd.to_numeric(df_cliente["Monto"], errors="coerce")
+        id_sel = historial[historial["Nombre"] == cliente_sel]["ID Cliente"].iloc[0]
+        df_cliente = df_hist[df_hist["ID Cliente"] == id_sel].copy()
         df_cliente = df_cliente.sort_values(by="Fecha", ascending=False)
 
         total = df_cliente["Monto"].sum()
@@ -821,21 +830,20 @@ elif pagina == "Clientes":
 
         st.markdown("### 📋 Historial completo")
         mostrar = df_cliente[[
-            "Fecha", "Servicio", "Monto", "Origen",
+            "Fecha", "Nombre", "Servicio", "Monto", "Origen",
             "Comentarios con llamada posterior a venta"
         ]].copy()
-        mostrar.columns = ["Fecha", "Servicio", "Monto", "Origen", "Comentarios"]
-        st.dataframe(mostrar, use_container_width=True)
+        mostrar.columns = ["Fecha", "Nombre", "Servicio", "Monto", "Origen", "Comentarios"]
+        st.dataframe(mostrar, use_container_width=True, hide_index=True)
 
     # 🔴 CLIENTES PERDIDOS
     st.markdown("## 🔴 Oportunidades de recuperación")
 
-    df_lost = df.copy()
-    df_lost["Fecha"] = pd.to_datetime(df_lost["Fecha"], errors="coerce")
-    df_lost["Monto"] = pd.to_numeric(df_lost["Monto"], errors="coerce")
+    df_lost = df_hist.copy()
     hoy = datetime.now()
 
-    ultimo = df_lost.groupby("Nombre").agg(
+    ultimo = df_lost.groupby("ID Cliente").agg(
+        Nombre=("Nombre", "last"),
         Ultima_Visita=("Fecha", "max"),
         Total_Gastado=("Monto", "sum"),
         Tel=("Tel", "last")
@@ -863,10 +871,9 @@ elif pagina == "Clientes":
     )
 
     st.markdown("### 📋 Lista priorizada")
-    st.dataframe(
-        perdidos[["Nombre", "Tel", "Total_Gastado", "Meses_sin_servicio"]],
-        use_container_width=True
-    )
+    perdidos_mostrar = perdidos[["ID Cliente", "Nombre", "Tel", "Total_Gastado", "Meses_sin_servicio"]].copy()
+    perdidos_mostrar["Total_Gastado"] = perdidos_mostrar["Total_Gastado"].apply(lambda x: f"${x:,.0f}")
+    st.dataframe(perdidos_mostrar, use_container_width=True, hide_index=True)
 
     # 🚀 CONTACTO MASIVO
     st.markdown("## 🚀 Contacto masivo")
@@ -880,7 +887,6 @@ elif pagina == "Clientes":
         }
 
         empresa = st.session_state.get("empresa", "")
-
         plantilla_sel_masiva = st.selectbox(
             "Plantilla para todos",
             list(PLANTILLAS_MASIVAS.keys()),
@@ -907,36 +913,14 @@ elif pagina == "Clientes":
 
             html_links_cl = ""
             for nombre_link, url_link in urls_perdidos:
-                html_links_cl += f"""
-                <a href="{url_link}" target="_blank" style="
-                    display:block; background-color:#25D366; color:white;
-                    text-decoration:none; padding:12px 16px; border-radius:8px;
-                    margin-bottom:8px; font-size:15px; font-family:sans-serif;
-                ">💬 {nombre_link}</a>
-                """
+                html_links_cl += f'<a href="{url_link}" target="_blank" style="display:block;background-color:#25D366;color:white;text-decoration:none;padding:12px 16px;border-radius:8px;margin-bottom:8px;font-size:15px;font-family:sans-serif;">💬 {nombre_link}</a>'
 
-            pagina_html_cl = f"""
-            <!DOCTYPE html><html><head><meta charset="utf-8">
-            <title>Contacto masivo</title>
-            <style>
-                body{{font-family:sans-serif;padding:24px;max-width:500px;margin:auto;background:#f9f9f9;}}
-                h2{{color:#128C7E;}}p{{color:#555;margin-bottom:20px;}}
-            </style></head>
-            <body>
-                <h2>📋 {len(urls_perdidos)} clientes a contactar</h2>
-                <p>Haz click en cada nombre para abrir WhatsApp Web.</p>
-                {html_links_cl}
-            </body></html>
-            """
+            pagina_html_cl = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>Contacto masivo</title>
+            <style>body{{font-family:sans-serif;padding:24px;max-width:500px;margin:auto;background:#f9f9f9;}}h2{{color:#128C7E;}}p{{color:#555;margin-bottom:20px;}}</style></head>
+            <body><h2>📋 {len(urls_perdidos)} clientes a contactar</h2><p>Haz click en cada nombre para abrir WhatsApp Web.</p>{html_links_cl}</body></html>"""
 
             b64_cl = base64.b64encode(pagina_html_cl.encode("utf-8")).decode("utf-8")
-            components.html(f"""
-            <a href="data:text/html;base64,{b64_cl}" target="_blank" style="
-                display:block; background-color:#128C7E; color:white;
-                text-decoration:none; text-align:center; border-radius:8px;
-                padding:14px 24px; font-size:16px; font-family:sans-serif; margin-top:8px;
-            ">🚀 Abrir panel de contacto masivo ({len(urls_perdidos)} contactos)</a>
-            """, height=65)
+            components.html(f'<a href="data:text/html;base64,{b64_cl}" target="_blank" style="display:block;background-color:#128C7E;color:white;text-decoration:none;text-align:center;border-radius:8px;padding:14px 24px;font-size:16px;font-family:sans-serif;margin-top:8px;">🚀 Abrir panel de contacto masivo ({len(urls_perdidos)} contactos)</a>', height=65)
 
     # 💬 CONTACTO INDIVIDUAL
     st.markdown("### 💬 Contacto rápido")
@@ -977,7 +961,6 @@ elif pagina == "Clientes":
         else:
             st.warning("Este cliente no tiene teléfono válido")
 
-    # 🔢 NUMERACIÓN ÚNICA
     st.markdown("---")
     st.markdown("### 🔢 Numeración única de clientes")
     with st.expander("⚠️ Usar solo una vez"):
