@@ -113,7 +113,7 @@ st.markdown("""
         font-size: 15px !important;
     }
 
-    /* ── BOTONES ── */
+    /* ── BOTONES NORMALES ── */
     .stButton > button {
         background: linear-gradient(135deg, #6C63FF 0%, #A78BFA 100%);
         color: white !important;
@@ -130,13 +130,28 @@ st.markdown("""
         border: none;
     }
 
-    /* ── BOTÓN LOGIN ── */
-    .stForm .stButton > button {
+    /* ── FORM SUBMIT BUTTON (login y otros forms) ── */
+    [data-testid="stFormSubmitButton"] > button {
         background: linear-gradient(135deg, #6C63FF 0%, #A78BFA 100%) !important;
         color: white !important;
-        font-size: 16px !important;
+        border: none !important;
         font-weight: 600 !important;
+        font-size: 16px !important;
+        border-radius: 8px !important;
+        width: 100% !important;
         padding: 12px 24px !important;
+    }
+    [data-testid="stFormSubmitButton"] > button:hover {
+        opacity: 0.85 !important;
+        border: none !important;
+    }
+    button[kind="formSubmit"],
+    button[kind="primaryFormSubmit"],
+    button[kind="secondaryFormSubmit"] {
+        background: linear-gradient(135deg, #6C63FF 0%, #A78BFA 100%) !important;
+        color: white !important;
+        border: none !important;
+        font-weight: 600 !important;
         border-radius: 8px !important;
     }
 
