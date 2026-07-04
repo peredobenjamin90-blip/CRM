@@ -30,7 +30,7 @@ st.markdown("""
     /* ── FONDO GENERAL ── */
     .stApp {
         background-color: #0F1117;
-        color: #E8EAF0;
+        color: #F0F2F6;
     }
 
     /* ── SIDEBAR ── */
@@ -38,7 +38,7 @@ st.markdown("""
         background: linear-gradient(180deg, #1A1D2E 0%, #0F1117 100%);
         border-right: 1px solid #2D2F3E;
     }
-    [data-testid="stSidebar"] * { color: #E8EAF0 !important; }
+    [data-testid="stSidebar"] * { color: #F0F2F6 !important; }
     [data-testid="stSidebar"] > div:first-child { padding-top: 0rem !important; }
     section[data-testid="stSidebar"] > div { padding-top: 0.5rem !important; }
 
@@ -47,26 +47,70 @@ st.markdown("""
         background: linear-gradient(135deg, #1A1D2E 0%, #16192A 100%) !important;
         border-radius: 12px;
         padding: 16px;
-        border: 1px solid #2D2F3E;
+        border: 1px solid #3D3F50;
         border-top: 2px solid #6C63FF;
     }
     [data-testid="stMetricValue"] {
-        font-size: clamp(14px, 2vw, 28px) !important;
+        font-size: clamp(16px, 2vw, 30px) !important;
         color: #FFFFFF !important;
+        font-weight: 700 !important;
     }
     [data-testid="stMetricLabel"] {
-        color: #8B8FA8 !important;
+        color: #C8CADB !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
     }
 
     /* ── TÍTULOS ── */
-    h1 { 
+    h1 {
         color: #FFFFFF !important;
         font-weight: 700 !important;
+        font-size: 2rem !important;
         letter-spacing: -0.5px;
     }
-    h2, h3 { 
+    h2, h3 {
         color: #A78BFA !important;
         font-weight: 600 !important;
+        font-size: 1.3rem !important;
+    }
+
+    /* ── TEXTO GENERAL ── */
+    p, span, div, label {
+        color: #F0F2F6 !important;
+        font-size: 15px !important;
+    }
+
+    /* ── LABELS DE INPUTS ── */
+    .stSelectbox label,
+    .stTextInput label,
+    .stNumberInput label,
+    .stDateInput label,
+    .stSlider label,
+    .stCheckbox label,
+    .stTextArea label {
+        color: #F0F2F6 !important;
+        font-size: 15px !important;
+        font-weight: 500 !important;
+    }
+
+    /* ── INPUTS ── */
+    .stTextInput > div > div > input,
+    .stNumberInput > div > div > input,
+    .stTextArea > div > div > textarea {
+        background-color: #1A1D2E !important;
+        border: 1px solid #4D4F65 !important;
+        border-radius: 8px !important;
+        color: #F0F2F6 !important;
+        font-size: 15px !important;
+    }
+
+    /* ── SELECTBOX ── */
+    .stSelectbox > div > div {
+        background-color: #1A1D2E !important;
+        border: 1px solid #4D4F65 !important;
+        border-radius: 8px !important;
+        color: #F0F2F6 !important;
+        font-size: 15px !important;
     }
 
     /* ── BOTONES ── */
@@ -78,68 +122,67 @@ st.markdown("""
         padding: 10px 24px;
         font-size: 15px;
         width: 100%;
-        font-weight: 500;
-        transition: opacity 0.2s;
+        font-weight: 600;
+        letter-spacing: 0.3px;
     }
-    .stButton > button:hover { 
+    .stButton > button:hover {
         opacity: 0.85;
         border: none;
     }
 
-    /* ── INPUTS ── */
-    .stTextInput > div > div > input,
-    .stNumberInput > div > div > input,
-    .stSelectbox > div > div {
-        background-color: #1A1D2E !important;
-        border: 1px solid #2D2F3E !important;
-        border-radius: 8px !important;
-        color: #E8EAF0 !important;
-    }
-
     /* ── DATAFRAME ── */
     .stDataFrame {
-        border: 1px solid #2D2F3E;
+        border: 1px solid #3D3F50;
         border-radius: 12px;
         overflow: hidden;
     }
 
-    /* ── DIVISORES ── */
-    hr {
-        border-color: #2D2F3E !important;
+    /* ── CAPTION ── */
+    .stCaption {
+        color: #C8CADB !important;
+        font-size: 13px !important;
     }
+
+    /* ── DIVISORES ── */
+    hr { border-color: #3D3F50 !important; }
 
     /* ── EXPANDER ── */
     .streamlit-expanderHeader {
         background-color: #1A1D2E !important;
-        border: 1px solid #2D2F3E !important;
+        border: 1px solid #3D3F50 !important;
         border-radius: 8px !important;
-        color: #E8EAF0 !important;
+        color: #F0F2F6 !important;
+        font-size: 15px !important;
     }
 
-    /* ── CAPTION ── */
-    .stCaption { color: #8B8FA8 !important; }
-
-    /* ── SUCCESS / ERROR / WARNING ── */
-    .stSuccess { 
+    /* ── ALERTS ── */
+    .stSuccess {
         background-color: #0D2818 !important;
         border: 1px solid #10B981 !important;
         border-radius: 8px !important;
+        color: #FFFFFF !important;
     }
     .stError {
         background-color: #2D0F0F !important;
         border: 1px solid #EF4444 !important;
         border-radius: 8px !important;
+        color: #FFFFFF !important;
     }
     .stWarning {
         background-color: #2D1F0F !important;
         border: 1px solid #F59E0B !important;
         border-radius: 8px !important;
+        color: #FFFFFF !important;
     }
     .stInfo {
         background-color: #0F1D2D !important;
         border: 1px solid #6C63FF !important;
         border-radius: 8px !important;
+        color: #FFFFFF !important;
     }
+
+    /* ── MARKDOWN BOLD ── */
+    strong { color: #FFFFFF !important; }
 </style>
 """, unsafe_allow_html=True)
 
