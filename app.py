@@ -130,6 +130,24 @@ st.markdown("""
         border: none;
     }
 
+    /* ── BOTÓN LOGIN ── */
+    .stForm .stButton > button {
+        background: linear-gradient(135deg, #6C63FF 0%, #A78BFA 100%) !important;
+        color: white !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        padding: 12px 24px !important;
+        border-radius: 8px !important;
+    }
+
+    /* ── FORM CONTAINER ── */
+    .stForm {
+        background-color: #1A1D2E !important;
+        border: 1px solid #3D3F50 !important;
+        border-radius: 12px !important;
+        padding: 24px !important;
+    }
+
     /* ── DATAFRAME ── */
     .stDataFrame {
         border: 1px solid #3D3F50;
