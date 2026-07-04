@@ -1557,7 +1557,9 @@ elif pagina == "Agenda":
             str(t) for t in x.dropna().unique()
             if str(t).strip() not in ["", "nan"]
         )),
-        Direccion=("Dirección", "last")
+        Direccion=("Dirección", "last"),
+        ID_Cliente=("ID Cliente", "last"),
+        Origen_ultimo=("Origen", "last")
     ).reset_index()
     clientes_lista = [""] + clientes_info["Nombre"].tolist()
 
@@ -1565,17 +1567,27 @@ elif pagina == "Agenda":
 
     tel_default = ""
     dir_default = ""
+    id_cliente_default = None
+
     if cliente_sel:
         fila_cliente = clientes_info[clientes_info["Nombre"] == cliente_sel]
         if not fila_cliente.empty:
             tel_default = fila_cliente.iloc[0]["Telefonos"]
             dir_default = str(fila_cliente.iloc[0]["Direccion"]) if pd.notnull(fila_cliente.iloc[0]["Direccion"]) else ""
+            id_cliente_default = fila_cliente.iloc[0]["ID_Cliente"]
+
+    ORIGENES = ["Rep", "Int", "Rec", "Face", "Amigo", "Club", "Maristas"]
 
     with st.form("agendar_servicio"):
         nombre = st.text_input("Nombre del cliente", value=cliente_sel)
         telefono = st.text_input("Teléfono(s)", value=tel_default)
         direccion = st.text_input("Dirección", value=dir_default)
         servicio = st.text_input("Servicio")
+        origen_input = st.selectbox(
+            "Origen",
+            ORIGENES,
+            index=0 if cliente_sel else 1
+        )
 
         col1, col2 = st.columns(2)
         with col1:
@@ -1591,20 +1603,37 @@ elif pagina == "Agenda":
             else:
                 try:
                     client_auth = get_supabase_auth()
+
+                    id_cliente = None
+                    if id_cliente_default and str(id_cliente_default) not in ["", "nan", "None"]:
+                        id_cliente = int(id_cliente_default)
+                    else:
+                        max_id_resp = supabase.table("clientes")\
+                            .select("cliente_id")\
+                            .eq("empresa_id", st.session_state["empresa_id"])\
+                            .order("cliente_id", desc=True)\
+                            .limit(1)\
+                            .execute()
+                        if max_id_resp.data and max_id_resp.data[0]["cliente_id"]:
+                            id_cliente = int(max_id_resp.data[0]["cliente_id"]) + 1
+                        else:
+                            id_cliente = 1
+
                     client_auth.table("clientes").insert({
                         "empresa_id": st.session_state["empresa_id"],
+                        "cliente_id": id_cliente,
                         "nombre": nombre,
                         "tel": telefono,
                         "direccion": direccion,
                         "servicio": servicio,
                         "fecha": fecha.isoformat(),
                         "monto": float(monto),
-                        "origen": "Agenda",
+                        "origen": origen_input,
                         "año": fecha.year,
                         "realizado": False
                     }).execute()
 
-                    st.success(f"✅ Servicio agendado para {nombre} el {fecha.strftime('%d/%m/%Y')} — se guardará en Sheets cuando se marque como realizado.")
+                    st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) el {fecha.strftime('%d/%m/%Y')} — se guardará en Sheets cuando se marque como realizado.")
                     st.cache_data.clear()
                     if "evento_seleccionado" in st.session_state:
                         del st.session_state["evento_seleccionado"]
@@ -1679,11 +1708,13 @@ elif pagina == "Agenda":
             with col1:
                 st.markdown(f"""
                 **👤 Cliente:** {row.get('Nombre','')}  
+                **🆔 ID:** {row.get('ID Cliente','')}  
                 **📞 Tel:** {row.get('Tel','')}  
                 **📍 Dirección:** {row.get('Dirección','')}  
                 **🧼 Servicio:** {row.get('Servicio','')}  
                 **📅 Fecha:** {row['Fecha'].strftime('%d/%m/%Y')}  
                 **💰 Monto:** ${row.get('Monto', 0):,.0f}  
+                **🔍 Origen:** {row.get('Origen','')}  
                 **💬 Comentarios:** {row.get('Comentarios con llamada posterior a venta','')}  
                 **Estado:** {'✅ Realizado' if realizado else '⏳ Pendiente'}
                 """)
@@ -1700,6 +1731,7 @@ elif pagina == "Agenda":
                 url = f"https://wa.me/{tel_ev}?text={urllib.parse.quote(mensaje)}"
                 st.markdown(f"[💬 Enviar WhatsApp]({url})")
 
+            # ── MARCAR COMO REALIZADO ──
             if not realizado:
                 if st.button("✅ Marcar como realizado y guardar en Sheets", use_container_width=True, type="primary"):
                     try:
@@ -1728,17 +1760,32 @@ elif pagina == "Agenda":
                             siguiente_folio = ultimo_folio + 1
                             folio_interno = f"{siguiente_folio}/{str(año_row)[-2:]}"
 
+                            origen_real = str(row.get("Origen", "")).strip()
+                            if not origen_real or origen_real.lower() in ["", "nan", "agenda"]:
+                                origen_real = "Rep" if row.get("ID Cliente") else "Int"
+
+                            id_cli = row.get("ID Cliente")
+                            es_repetidor = False
+                            if id_cli and str(id_cli) not in ["", "nan", "None"]:
+                                servicios_previos = df_a[
+                                    (df_a["ID Cliente"] == id_cli) &
+                                    (df_a["id"].astype(str) != str(id_click))
+                                ]
+                                es_repetidor = len(servicios_previos) > 0
+
                             nueva_fila = [
                                 siguiente_folio,
                                 folio_interno,
                                 row["Fecha"].strftime("%m/%d/%Y"),
+                                int(id_cli) if id_cli and str(id_cli) not in ["", "nan", "None"] else "",
                                 row.get("Nombre", ""),
                                 row.get("Tel", ""),
                                 row.get("Dirección", ""),
-                                row.get("Origen", "Agenda"),
+                                origen_real,
                                 row.get("Monto", 0),
                                 row.get("Servicio", ""),
-                                "", "", "", ""
+                                row.get("Comentarios con llamada posterior a venta", ""),
+                                "", "", ""
                             ]
 
                             col_c = worksheet.col_values(3)
@@ -1752,6 +1799,12 @@ elif pagina == "Agenda":
                                 primera_vacia = len(datos_col_c) + 2
 
                             worksheet.insert_row(nueva_fila, primera_vacia)
+
+                            if es_repetidor:
+                                worksheet.format(f"A{primera_vacia}", {
+                                    "backgroundColor": {"red": 0.2, "green": 0.8, "blue": 0.2}
+                                })
+
                             st.success("✅ Servicio marcado como realizado y guardado en Sheets.")
                         else:
                             st.success("✅ Marcado como realizado. No hay sheet configurado para este año.")
@@ -1768,7 +1821,46 @@ elif pagina == "Agenda":
             else:
                 st.success("✅ Este servicio ya fue realizado y guardado en Sheets.")
 
-            st.markdown("#### ✏️ Corregir fecha del servicio")
+            # ── EDITAR DATOS ──
+            st.markdown("#### ✏️ Editar datos del servicio")
+            with st.form("editar_servicio_form"):
+                edit_nombre = st.text_input("Nombre", value=row.get("Nombre", ""))
+                edit_tel = st.text_input("Teléfono", value=str(row.get("Tel", "")))
+                edit_dir = st.text_input("Dirección", value=str(row.get("Dirección", "")))
+                edit_servicio = st.text_input("Servicio", value=str(row.get("Servicio", "")))
+                edit_monto = st.number_input("Monto", min_value=0, value=int(row.get("Monto", 0) or 0))
+                origen_actual = str(row.get("Origen", "Int"))
+                edit_origen = st.selectbox(
+                    "Origen",
+                    ORIGENES,
+                    index=ORIGENES.index(origen_actual) if origen_actual in ORIGENES else 1
+                )
+                guardar_edicion = st.form_submit_button("💾 Guardar cambios", use_container_width=True)
+
+                if guardar_edicion:
+                    try:
+                        client_auth = get_supabase_auth()
+                        client_auth.table("clientes").update({
+                            "nombre": edit_nombre,
+                            "tel": edit_tel,
+                            "direccion": edit_dir,
+                            "servicio": edit_servicio,
+                            "monto": float(edit_monto),
+                            "origen": edit_origen
+                        }).eq("id", id_click).execute()
+
+                        st.success("✅ Servicio actualizado correctamente.")
+                        st.cache_data.clear()
+                        del st.session_state["evento_seleccionado"]
+                        st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
+                        import time as t
+                        t.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al editar: {e}")
+
+            # ── EDITAR FECHA ──
+            st.markdown("#### 📅 Corregir fecha del servicio")
             with st.form("editar_fecha_form"):
                 nueva_fecha = st.date_input("Nueva fecha:", value=row["Fecha"].date())
                 confirmar_edicion = st.form_submit_button("📅 Cambiar fecha", use_container_width=True)
@@ -1794,6 +1886,7 @@ elif pagina == "Agenda":
                         except Exception as e:
                             st.error(f"Error al cambiar fecha: {e}")
 
+            # ── ELIMINAR ──
             st.markdown("#### 🗑️ Eliminar servicio")
             with st.form("borrar_form"):
                 st.warning("Esta acción no se puede deshacer.")
