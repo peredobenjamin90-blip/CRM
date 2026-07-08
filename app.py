@@ -1577,16 +1577,20 @@ elif pagina == "Agenda":
         client_auth.postgrest.auth(st.session_state.get("access_token", ""))
         return client_auth
 
-    def parsear_fechas(serie):
-        resultado = pd.to_datetime(serie, errors="coerce", format="%m/%d/%Y")
-        mask = resultado.isna()
-        if mask.any():
-            resultado[mask] = pd.to_datetime(serie[mask], errors="coerce", format="%d/%m/%Y")
-        return resultado
+    def limpiar_valor(val, default=""):
+        if val is None:
+            return default
+        try:
+            if pd.isna(val):
+                return default
+        except:
+            pass
+        return val
 
     df_a = df.copy()
     df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce")
     df_a["Monto"] = pd.to_numeric(df_a["Monto"], errors="coerce")
+    df_a["ID Cliente"] = pd.to_numeric(df_a["ID Cliente"], errors="coerce")
 
     plantillas = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
     empresa = st.session_state.get("empresa", "")
@@ -1608,18 +1612,19 @@ elif pagina == "Agenda":
                 realizado = row.get("realizado", False)
                 estado = "✅ Realizado" if realizado else "⏳ Pendiente"
                 st.markdown(f"""
-                **👤 Cliente:** {row.get('Nombre','')}  
-                **📞 Tel:** {row.get('Tel','')}  
-                **📍 Dirección:** {row.get('Dirección','')}  
-                **🧼 Servicio:** {row.get('Servicio','')}  
-                **💰 Monto:** ${row.get('Monto',0):,.0f}  
+                **👤 Cliente:** {limpiar_valor(row.get('Nombre'))}  
+                **🆔 ID:** {limpiar_valor(row.get('ID Cliente'))}  
+                **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
+                **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
+                **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
+                **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **Estado:** {estado}
                 """)
                 tel = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
                 if tel and tel != "nan":
                     tel_completo = "52" + tel
                     mensaje_template = plantillas.get("confirmacion", "Hola {nombre}")
-                    mensaje = mensaje_template.format(nombre=row.get("Nombre", ""), empresa=empresa)
+                    mensaje = mensaje_template.format(nombre=limpiar_valor(row.get("Nombre")), empresa=empresa)
                     url = f"https://wa.me/{tel_completo}?text={urllib.parse.quote(mensaje)}"
                     st.markdown(f"[💬 Enviar WhatsApp]({url})")
                 else:
@@ -1628,36 +1633,66 @@ elif pagina == "Agenda":
 
     st.markdown("### ➕ Agendar nuevo servicio")
 
-    clientes_info = df_a.groupby("Nombre").agg(
+    # ── BOTÓN VACIAR CELDAS ──
+    if st.button("🗑️ Vaciar campos", key="vaciar_campos"):
+        st.session_state["agenda_cliente_sel"] = ""
+        st.session_state["agenda_limpiar"] = True
+        st.rerun()
+
+    limpiar = st.session_state.pop("agenda_limpiar", False)
+
+    clientes_info = df_a.groupby("ID Cliente").agg(
+        Nombre=("Nombre", "last"),
         Telefonos=("Tel", lambda x: " / ".join(
             str(t) for t in x.dropna().unique()
             if str(t).strip() not in ["", "nan"]
         )),
         Direccion=("Dirección", "last"),
-        ID_Cliente=("ID Cliente", "last"),
         Origen_ultimo=("Origen", "last")
     ).reset_index()
-    clientes_lista = [""] + clientes_info["Nombre"].tolist()
+    clientes_info["ID Cliente"] = pd.to_numeric(clientes_info["ID Cliente"], errors="coerce")
+    clientes_info = clientes_info.dropna(subset=["ID Cliente"])
+    clientes_info["ID Cliente"] = clientes_info["ID Cliente"].astype(int)
+    clientes_info = clientes_info.sort_values("Nombre")
 
-    cliente_sel = st.selectbox("Cliente existente (opcional)", clientes_lista, key="cliente_agenda_sel")
+    # Lista con ID + Nombre
+    opciones_clientes = [""] + [
+        f"[{int(row['ID Cliente'])}] {row['Nombre']}"
+        for _, row in clientes_info.iterrows()
+    ]
+
+    cliente_sel_key = st.session_state.get("agenda_cliente_sel", "")
+    cliente_sel = st.selectbox(
+        "Cliente existente (opcional) — busca por nombre o ID",
+        opciones_clientes,
+        index=0 if limpiar else opciones_clientes.index(cliente_sel_key) if cliente_sel_key in opciones_clientes else 0,
+        key="cliente_agenda_sel"
+    )
 
     tel_default = ""
     dir_default = ""
     id_cliente_default = None
+    nombre_default = ""
 
     if cliente_sel:
-        fila_cliente = clientes_info[clientes_info["Nombre"] == cliente_sel]
-        if not fila_cliente.empty:
-            tel_default = fila_cliente.iloc[0]["Telefonos"]
-            dir_default = str(fila_cliente.iloc[0]["Direccion"]) if pd.notnull(fila_cliente.iloc[0]["Direccion"]) else ""
-            id_cliente_default = fila_cliente.iloc[0]["ID_Cliente"]
+        # Extraer ID del string "[123] Nombre"
+        try:
+            id_extraido = int(cliente_sel.split("]")[0].replace("[", "").strip())
+            fila_cliente = clientes_info[clientes_info["ID Cliente"] == id_extraido]
+            if not fila_cliente.empty:
+                tel_default = fila_cliente.iloc[0]["Telefonos"]
+                dir_default = str(fila_cliente.iloc[0]["Direccion"]) if pd.notnull(fila_cliente.iloc[0]["Direccion"]) else ""
+                id_cliente_default = id_extraido
+                nombre_default = fila_cliente.iloc[0]["Nombre"]
+        except:
+            pass
 
     ORIGENES = ["Rep", "Int", "Rec", "Face", "Amigo", "Club", "Maristas"]
 
     with st.form("agendar_servicio"):
-        nombre = st.text_input("Nombre del cliente", value=cliente_sel)
-        telefono = st.text_input("Teléfono(s)", value=tel_default)
-        direccion = st.text_input("Dirección", value=dir_default)
+        nombre = st.text_input("Nombre del cliente", value="" if limpiar else nombre_default)
+        telefono = st.text_input("Teléfono(s)", value="" if limpiar else tel_default)
+        direccion = st.text_input("Dirección", value="" if limpiar else dir_default)
         servicio = st.text_input("Servicio")
         origen_input = st.selectbox(
             "Origen",
@@ -1680,6 +1715,7 @@ elif pagina == "Agenda":
                 try:
                     client_auth = get_supabase_auth()
 
+                    # Determinar ID cliente
                     id_cliente = None
                     if id_cliente_default and str(id_cliente_default) not in ["", "nan", "None"]:
                         id_cliente = int(id_cliente_default)
@@ -1709,7 +1745,7 @@ elif pagina == "Agenda":
                         "realizado": False
                     }).execute()
 
-                    st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) el {fecha.strftime('%d/%m/%Y')} — se guardará en Sheets cuando se marque como realizado.")
+                    st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) el {fecha.strftime('%d/%m/%Y')}")
                     st.cache_data.clear()
                     if "evento_seleccionado" in st.session_state:
                         del st.session_state["evento_seleccionado"]
@@ -1734,7 +1770,7 @@ elif pagina == "Agenda":
         realizado = row.get("realizado", False)
         color = "#2B5BAA" if realizado else "#F59E0B"
         eventos.append({
-            "title": f"{'✅' if realizado else '⏳'} {row.get('Nombre', '')} — {row.get('Servicio', '')}",
+            "title": f"{'✅' if realizado else '⏳'} {limpiar_valor(row.get('Nombre'))} — {limpiar_valor(row.get('Servicio'))}",
             "start": row["Fecha"].strftime("%Y-%m-%d"),
             "end": row["Fecha"].strftime("%Y-%m-%d"),
             "backgroundColor": color,
@@ -1783,15 +1819,15 @@ elif pagina == "Agenda":
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.markdown(f"""
-                **👤 Cliente:** {row.get('Nombre','')}  
-                **🆔 ID:** {row.get('ID Cliente','')}  
-                **📞 Tel:** {row.get('Tel','')}  
-                **📍 Dirección:** {row.get('Dirección','')}  
-                **🧼 Servicio:** {row.get('Servicio','')}  
+                **👤 Cliente:** {limpiar_valor(row.get('Nombre'))}  
+                **🆔 ID:** {limpiar_valor(row.get('ID Cliente'))}  
+                **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
+                **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
+                **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
                 **📅 Fecha:** {row['Fecha'].strftime('%d/%m/%Y')}  
-                **💰 Monto:** ${row.get('Monto', 0):,.0f}  
-                **🔍 Origen:** {row.get('Origen','')}  
-                **💬 Comentarios:** {row.get('Comentarios con llamada posterior a venta','')}  
+                **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
+                **🔍 Origen:** {limpiar_valor(row.get('Origen'))}  
+                **💬 Comentarios:** {limpiar_valor(row.get('Comentarios con llamada posterior a venta'))}  
                 **Estado:** {'✅ Realizado' if realizado else '⏳ Pendiente'}
                 """)
             with col2:
@@ -1800,10 +1836,10 @@ elif pagina == "Agenda":
                     st.rerun()
 
             tel_ev = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
-            if tel_ev and tel_ev != "nan":
+            if tel_ev and tel_ev not in ["nan", ""]:
                 tel_ev = "52" + tel_ev
                 mensaje_template = plantillas.get("confirmacion", "Hola {nombre}")
-                mensaje = mensaje_template.format(nombre=row.get("Nombre", ""), empresa=empresa)
+                mensaje = mensaje_template.format(nombre=limpiar_valor(row.get("Nombre")), empresa=empresa)
                 url = f"https://wa.me/{tel_ev}?text={urllib.parse.quote(mensaje)}"
                 st.markdown(f"[💬 Enviar WhatsApp]({url})")
 
@@ -1836,31 +1872,40 @@ elif pagina == "Agenda":
                             siguiente_folio = ultimo_folio + 1
                             folio_interno = f"{siguiente_folio}/{str(año_row)[-2:]}"
 
-                            origen_real = str(row.get("Origen", "")).strip()
-                            if not origen_real or origen_real.lower() in ["", "nan", "agenda"]:
-                                origen_real = "Rep" if row.get("ID Cliente") else "Int"
+                            origen_real = limpiar_valor(row.get("Origen"), "Int")
+                            if origen_real.lower() in ["agenda", ""]:
+                                origen_real = "Rep" if id_cliente_default else "Int"
 
                             id_cli = row.get("ID Cliente")
+                            id_cli_limpio = int(id_cli) if id_cli and str(id_cli) not in ["", "nan", "None"] and pd.notnull(id_cli) else ""
+
+                            # Verificar si es repetidor
                             es_repetidor = False
-                            if id_cli and str(id_cli) not in ["", "nan", "None"]:
+                            if id_cli_limpio:
                                 servicios_previos = df_a[
                                     (df_a["ID Cliente"] == id_cli) &
                                     (df_a["id"].astype(str) != str(id_click))
                                 ]
                                 es_repetidor = len(servicios_previos) > 0
 
+                            # Verificar comentarios negativos
+                            comentario = limpiar_valor(row.get("Comentarios con llamada posterior a venta"), "").lower()
+                            cliente_no_contactar = any(palabra in comentario for palabra in [
+                                "no se llama", "no contactar", "no vuelve", "cliente no deseable", "muy mal"
+                            ])
+
                             nueva_fila = [
                                 siguiente_folio,
                                 folio_interno,
                                 row["Fecha"].strftime("%m/%d/%Y"),
-                                int(id_cli) if id_cli and str(id_cli) not in ["", "nan", "None"] else "",
-                                row.get("Nombre", ""),
-                                row.get("Tel", ""),
-                                row.get("Dirección", ""),
+                                id_cli_limpio,
+                                limpiar_valor(row.get("Nombre")),
+                                limpiar_valor(row.get("Tel")),
+                                limpiar_valor(row.get("Dirección")),
                                 origen_real,
-                                row.get("Monto", 0),
-                                row.get("Servicio", ""),
-                                row.get("Comentarios con llamada posterior a venta", ""),
+                                float(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0,
+                                limpiar_valor(row.get("Servicio")),
+                                limpiar_valor(row.get("Comentarios con llamada posterior a venta")),
                                 "", "", ""
                             ]
 
@@ -1876,7 +1921,12 @@ elif pagina == "Agenda":
 
                             worksheet.insert_row(nueva_fila, primera_vacia)
 
-                            if es_repetidor:
+                            # Color columna A
+                            if cliente_no_contactar:
+                                worksheet.format(f"A{primera_vacia}", {
+                                    "backgroundColor": {"red": 0.9, "green": 0.2, "blue": 0.2}
+                                })
+                            elif es_repetidor:
                                 worksheet.format(f"A{primera_vacia}", {
                                     "backgroundColor": {"red": 0.2, "green": 0.8, "blue": 0.2}
                                 })
@@ -1900,15 +1950,17 @@ elif pagina == "Agenda":
             # ── EDITAR DATOS ──
             st.markdown("#### ✏️ Editar datos del servicio")
             with st.form("editar_servicio_form"):
-                edit_nombre = st.text_input("Nombre", value=row.get("Nombre", ""))
-                edit_tel = st.text_input("Teléfono", value=str(row.get("Tel", "")))
-                edit_dir = st.text_input("Dirección", value=str(row.get("Dirección", "")))
-                edit_servicio = st.text_input("Servicio", value=str(row.get("Servicio", "")))
-                edit_monto = st.number_input("Monto", min_value=0, value=int(row.get("Monto", 0) or 0))
-                origen_actual = str(row.get("Origen", "Int"))
+                edit_nombre = st.text_input("Nombre", value=limpiar_valor(row.get("Nombre")))
+                edit_tel = st.text_input("Teléfono", value=limpiar_valor(row.get("Tel")))
+                edit_dir = st.text_input("Dirección", value=limpiar_valor(row.get("Dirección")))
+                edit_servicio = st.text_input("Servicio", value=limpiar_valor(row.get("Servicio")))
+                edit_monto = st.number_input(
+                    "Monto", min_value=0,
+                    value=int(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0
+                )
+                origen_actual = limpiar_valor(row.get("Origen"), "Int")
                 edit_origen = st.selectbox(
-                    "Origen",
-                    ORIGENES,
+                    "Origen", ORIGENES,
                     index=ORIGENES.index(origen_actual) if origen_actual in ORIGENES else 1
                 )
                 guardar_edicion = st.form_submit_button("💾 Guardar cambios", use_container_width=True)
