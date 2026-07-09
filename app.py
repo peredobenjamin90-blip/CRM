@@ -213,6 +213,27 @@ st.markdown("""
         border-radius: 8px !important;
         color: #FFFFFF !important;
     }
+    /* ── DROPDOWN OPCIONES (fondo blanco, letra negra) ── */
+    [data-baseweb="popover"] {
+        background-color: #FFFFFF !important;
+    }
+    [data-baseweb="menu"] {
+        background-color: #FFFFFF !important;
+    }
+    [data-baseweb="option"] {
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
+        font-size: 15px !important;
+    }
+    [data-baseweb="option"]:hover {
+        background-color: #F0F0F0 !important;
+        color: #000000 !important;
+    }
+    /* Placeholder text */
+    input::placeholder {
+        color: #9B9DB0 !important;
+        opacity: 1 !important;
+    }
 
     /* ── MARKDOWN BOLD ── */
     strong { color: #FFFFFF !important; }
@@ -928,14 +949,14 @@ elif pagina == "Clientes":
     df_hist["Fecha"] = pd.to_datetime(df_hist["Fecha"], errors="coerce")
     df_hist["ID Cliente"] = pd.to_numeric(df_hist["ID Cliente"], errors="coerce")
 
-    # Agrupar por ID Cliente para unir nombres distintos del mismo cliente
     historial = df_hist.groupby("ID Cliente").agg(
         Nombre=("Nombre", "last"),
         Total_Gastado=("Monto", "sum"),
         Servicios=("Monto", "count"),
         Ultima_Visita=("Fecha", "max"),
         Ticket_Promedio=("Monto", "mean"),
-        Tel=("Tel", "last")
+        Tel=("Tel", "last"),
+        Direccion=("Dirección", "last")
     ).reset_index()
 
     historial = historial.sort_values(by="Total_Gastado", ascending=False)
@@ -947,12 +968,19 @@ elif pagina == "Clientes":
             historial["ID Cliente"].astype(str).str.contains(cliente_buscar, na=False)
         ]
 
-    # Formatear para mostrar
     historial_mostrar = historial.copy()
     historial_mostrar["Total_Gastado"] = historial_mostrar["Total_Gastado"].apply(lambda x: f"${x:,.0f}")
     historial_mostrar["Ticket_Promedio"] = historial_mostrar["Ticket_Promedio"].apply(lambda x: f"${x:,.0f}" if pd.notnull(x) else "-")
     historial_mostrar["Ultima_Visita"] = historial_mostrar["Ultima_Visita"].dt.strftime("%d/%m/%Y").fillna("-")
-    historial_mostrar = historial_mostrar[["ID Cliente", "Nombre", "Tel", "Total_Gastado", "Servicios", "Ultima_Visita", "Ticket_Promedio"]]
+    historial_mostrar["Direccion"] = historial_mostrar["Direccion"].fillna("-")
+    historial_mostrar = historial_mostrar[[
+        "ID Cliente", "Nombre", "Tel", "Direccion",
+        "Total_Gastado", "Servicios", "Ultima_Visita", "Ticket_Promedio"
+    ]]
+    historial_mostrar.columns = [
+        "ID", "Nombre", "Tel", "Dirección",
+        "Total Gastado", "Servicios", "Última Visita", "Ticket Promedio"
+    ]
 
     st.markdown("### 🏆 Top clientes")
     top_clientes = historial.head(10)
@@ -960,13 +988,10 @@ elif pagina == "Clientes":
     with col1:
         st.metric("💰 Mejor cliente", top_clientes.iloc[0]["Nombre"] if not top_clientes.empty else "-")
     with col2:
-        st.metric(
-            "💵 Mayor gasto",
-            f"${top_clientes.iloc[0]['Total_Gastado']:,.0f}" if not top_clientes.empty else "$0"
-        )
+        st.metric("💵 Mayor gasto", f"${top_clientes.iloc[0]['Total_Gastado']:,.0f}" if not top_clientes.empty else "$0")
     st.dataframe(historial_mostrar, use_container_width=True, hide_index=True)
 
-    # 👤 PERFIL
+    # 👤 PERFIL + EDICIÓN
     st.markdown("### 👤 Perfil del cliente")
     clientes_lista = historial["Nombre"].dropna().unique().tolist()
     cliente_sel = st.selectbox("Selecciona un cliente", clientes_lista)
@@ -986,6 +1011,44 @@ elif pagina == "Clientes":
         col2.metric("Servicios", visitas)
         col3.metric("Última visita", ultima.strftime("%d/%m/%Y") if pd.notnull(ultima) else "-")
         col4.metric("Ticket promedio", f"${promedio:,.0f}")
+
+        # Datos actuales del cliente
+        ultima_fila = df_cliente.iloc[0]
+        tel_actual = str(ultima_fila.get("Tel", ""))
+        dir_actual = str(ultima_fila.get("Dirección", ""))
+
+        # ── EDITAR CLIENTE ──
+        st.markdown("### ✏️ Editar datos del cliente")
+        with st.form("editar_cliente_form"):
+            nuevo_nombre = st.text_input("Nombre", value=cliente_sel)
+            nuevo_tel = st.text_input("Teléfono", value=tel_actual if tel_actual != "nan" else "")
+            nueva_dir = st.text_input("Dirección", value=dir_actual if dir_actual != "nan" else "")
+            guardar = st.form_submit_button("💾 Guardar cambios", use_container_width=True)
+
+            if guardar:
+                try:
+                    client_auth = create_client(
+                        st.secrets["SUPABASE_URL"],
+                        st.secrets["SUPABASE_KEY"]
+                    )
+                    client_auth.postgrest.auth(st.session_state.get("access_token", ""))
+
+                    # Actualizar todos los registros de este cliente
+                    client_auth.table("clientes").update({
+                        "nombre": nuevo_nombre,
+                        "tel": nuevo_tel,
+                        "direccion": nueva_dir
+                    }).eq("empresa_id", st.session_state["empresa_id"])\
+                      .eq("cliente_id", int(id_sel))\
+                      .execute()
+
+                    st.success(f"✅ Datos de {nuevo_nombre} actualizados en todos sus registros.")
+                    st.cache_data.clear()
+                    import time as t
+                    t.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al actualizar: {e}")
 
         st.markdown("### 📋 Historial completo")
         mostrar = df_cliente[[
@@ -1119,45 +1182,6 @@ elif pagina == "Clientes":
             st.link_button("💬 Abrir WhatsApp", url)
         else:
             st.warning("Este cliente no tiene teléfono válido")
-        # ── SERVICIOS ──
-elif pagina == "Servicios":
-    st.title("Servicios más vendidos")
-    año_serv = st.selectbox("Año:", años_sin_2026)
-    df_s = df[df["Año"] == año_serv].copy()
-
-    df_s = df_s[df_s["Servicio"].notna()]
-    df_s = df_s[df_s["Servicio"].astype(str).str.strip() != ""]
-
-    categorias_config = USUARIOS[st.session_state["usuario"]].get("categorias", {})
-
-    filas_expandidas = []
-    for _, row in df_s.iterrows():
-        s = str(row["Servicio"]).lower()
-        encontradas = set()
-        for categoria, keywords in categorias_config.items():
-            for kw in keywords:
-                if kw in s:
-                    encontradas.add(categoria)
-        if not encontradas:
-            encontradas.add("Otro")
-        for cat in encontradas:
-            filas_expandidas.append(cat)
-
-    import collections
-    conteo = collections.Counter(filas_expandidas)
-    cats = pd.DataFrame(conteo.items(), columns=["Categoria", "Cantidad"])
-    cats = cats.sort_values("Cantidad", ascending=False)
-
-    fig = px.pie(
-        cats,
-        names="Categoria",
-        values="Cantidad",
-        title="Servicios más vendidos",
-        hole=0.3
-    )
-    fig.update_traces(textposition="inside", textinfo="percent+label")
-    st.plotly_chart(fig, use_container_width=True)
-    st.dataframe(cats, use_container_width=True)
 
     # ── FOLLOW UP ──
 elif pagina == "Follow Up":
