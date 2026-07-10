@@ -1610,6 +1610,8 @@ elif pagina == "Agenda":
     if st.button("🗑️ Vaciar campos", key="vaciar_campos"):
         st.session_state["form_key"] += 1
         st.session_state["agenda_limpiar"] = True
+        for k in ["agenda_cliente_id", "agenda_cliente_nombre", "agenda_cliente_tel", "agenda_cliente_dir"]:
+            st.session_state.pop(k, None)
         st.rerun()
 
     limpiar = st.session_state.pop("agenda_limpiar", False)
@@ -1621,7 +1623,6 @@ elif pagina == "Agenda":
             if str(t).strip() not in ["", "nan"]
         )),
         Direccion=("Dirección", "last"),
-        Origen_ultimo=("Origen", "last")
     ).reset_index()
     clientes_info["ID Cliente"] = pd.to_numeric(clientes_info["ID Cliente"], errors="coerce")
     clientes_info = clientes_info.dropna(subset=["ID Cliente"])
@@ -1629,7 +1630,7 @@ elif pagina == "Agenda":
 
     # ── BUSCADOR ──
     buscar_agenda = st.text_input(
-        "🔍 Escribe nombre o ID para filtrar",
+        "🔍 Escribe nombre o ID para buscar cliente",
         key=f"buscar_agenda_{st.session_state['form_key']}"
     )
 
@@ -1642,42 +1643,30 @@ elif pagina == "Agenda":
             clientes_filtrados = clientes_info[
                 clientes_info["Nombre"].str.contains(buscar_agenda.strip(), case=False, na=False)
             ].sort_values("Nombre")
-    else:
-        clientes_filtrados = clientes_info.sort_values("Nombre")
 
-    opciones_clientes = ["— Selecciona un cliente —"] + [
-        f"[{int(row['ID Cliente'])}] {row['Nombre']}"
-        for _, row in clientes_filtrados.iterrows()
-    ]
+        st.caption(f"{len(clientes_filtrados)} resultado(s)")
 
-    st.caption(f"{len(clientes_filtrados)} cliente(s) encontrados")
+        for _, fila in clientes_filtrados.head(10).iterrows():
+            label = f"[{int(fila['ID Cliente'])}] {fila['Nombre']} — {fila['Telefonos']}"
+            if st.button(label, key=f"sel_cliente_{int(fila['ID Cliente'])}_{st.session_state['form_key']}"):
+                st.session_state["agenda_cliente_id"] = int(fila["ID Cliente"])
+                st.session_state["agenda_cliente_nombre"] = fila["Nombre"]
+                st.session_state["agenda_cliente_tel"] = fila["Telefonos"]
+                st.session_state["agenda_cliente_dir"] = str(fila["Direccion"]) if pd.notnull(fila["Direccion"]) else ""
+                st.rerun()
 
-    cliente_sel_idx = st.selectbox(
-        "Cliente existente (opcional)",
-        range(len(opciones_clientes)),
-        format_func=lambda i: opciones_clientes[i],
-        index=0,
-        key=f"cliente_agenda_sel_{st.session_state['form_key']}"
-    )
-
-    cliente_sel = opciones_clientes[cliente_sel_idx] if cliente_sel_idx > 0 else ""
-
-    tel_default = ""
-    dir_default = ""
+    # ── CLIENTE SELECCIONADO ──
     id_cliente_default = None
     nombre_default = ""
+    tel_default = ""
+    dir_default = ""
 
-    if cliente_sel and not limpiar:
-        try:
-            id_extraido = int(cliente_sel.split("]")[0].replace("[", "").strip())
-            fila_cliente = clientes_info[clientes_info["ID Cliente"] == id_extraido]
-            if not fila_cliente.empty:
-                tel_default = fila_cliente.iloc[0]["Telefonos"]
-                dir_default = str(fila_cliente.iloc[0]["Direccion"]) if pd.notnull(fila_cliente.iloc[0]["Direccion"]) else ""
-                id_cliente_default = id_extraido
-                nombre_default = fila_cliente.iloc[0]["Nombre"]
-        except:
-            pass
+    if "agenda_cliente_id" in st.session_state and not limpiar:
+        id_cliente_default = st.session_state["agenda_cliente_id"]
+        nombre_default = st.session_state.get("agenda_cliente_nombre", "")
+        tel_default = st.session_state.get("agenda_cliente_tel", "")
+        dir_default = st.session_state.get("agenda_cliente_dir", "")
+        st.info(f"✅ Cliente seleccionado: [{id_cliente_default}] {nombre_default}")
 
     ORIGENES = ["Rep", "Int", "Rec", "Face", "Amigo", "Club", "Maristas"]
 
@@ -1687,9 +1676,8 @@ elif pagina == "Agenda":
         direccion = st.text_input("Dirección", value=dir_default)
         servicio = st.text_input("Servicio")
         origen_input = st.selectbox(
-            "Origen",
-            ORIGENES,
-            index=0 if cliente_sel else 1
+            "Origen", ORIGENES,
+            index=0 if id_cliente_default else 1
         )
 
         col1, col2, col3 = st.columns(3)
@@ -1746,6 +1734,8 @@ elif pagina == "Agenda":
                     hora_txt = f" a las {hora_str}" if hora_str else ""
                     st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha_txt}{hora_txt}")
                     st.cache_data.clear()
+                    for k in ["agenda_cliente_id", "agenda_cliente_nombre", "agenda_cliente_tel", "agenda_cliente_dir"]:
+                        st.session_state.pop(k, None)
                     if "evento_seleccionado" in st.session_state:
                         del st.session_state["evento_seleccionado"]
                     import time as t
