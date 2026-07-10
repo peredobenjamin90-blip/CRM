@@ -1624,6 +1624,7 @@ elif pagina == "Chat":
 elif pagina == "Agenda":
     st.title("📅 Agenda de Servicios")
     import urllib.parse
+    from datetime import datetime, timedelta
 
     SHEET_IDS = USUARIOS[st.session_state["usuario"]].get("sheets", {})
 
@@ -1644,6 +1645,21 @@ elif pagina == "Agenda":
         except:
             pass
         return val
+
+    def fecha_relativa(fecha):
+        hoy = datetime.now().date()
+        diff = (fecha - hoy).days
+        dias_es = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+        if diff == 0:
+            return "hoy"
+        elif diff == 1:
+            return "mañana"
+        elif diff == 2:
+            return "pasado mañana"
+        elif 3 <= diff <= 6:
+            return f"el {dias_es[fecha.weekday()]}"
+        else:
+            return fecha.strftime("%d/%m/%Y")
 
     df_a = df.copy()
     df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce")
@@ -1669,20 +1685,34 @@ elif pagina == "Agenda":
             with st.container():
                 realizado = row.get("realizado", False)
                 estado = "✅ Realizado" if realizado else "⏳ Pendiente"
+                hora_str = limpiar_valor(row.get("hora"))
+                fecha_row = row["Fecha"].date() if pd.notnull(row["Fecha"]) else None
+                fecha_txt = fecha_relativa(fecha_row) if fecha_row else ""
+
                 st.markdown(f"""
                 **👤 Cliente:** {limpiar_valor(row.get('Nombre'))}  
                 **🆔 ID:** {limpiar_valor(row.get('ID Cliente'))}  
                 **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
                 **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
                 **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
+                **📅 Fecha:** {fecha_txt}{f' a las {hora_str}' if hora_str else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **Estado:** {estado}
                 """)
                 tel = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
                 if tel and tel != "nan":
                     tel_completo = "52" + tel
-                    mensaje_template = plantillas.get("confirmacion", "Hola {nombre}")
-                    mensaje = mensaje_template.format(nombre=limpiar_valor(row.get("Nombre")), empresa=empresa)
+                    # Mensaje con fecha relativa
+                    fecha_msg = fecha_relativa(fecha_row) if fecha_row else ""
+                    hora_msg = f" a las {hora_str}" if hora_str else ""
+                    mensaje_template = plantillas.get("confirmacion",
+                        f"Hola {{nombre}}, confirmamos tu servicio con {{empresa}} para {fecha_msg}{hora_msg}.")
+                    mensaje = mensaje_template.format(
+                        nombre=limpiar_valor(row.get("Nombre")),
+                        empresa=empresa,
+                        fecha=fecha_msg,
+                        hora=hora_msg
+                    )
                     url = f"https://wa.me/{tel_completo}?text={urllib.parse.quote(mensaje)}"
                     st.markdown(f"[💬 Enviar WhatsApp]({url})")
                 else:
@@ -1691,9 +1721,12 @@ elif pagina == "Agenda":
 
     st.markdown("### ➕ Agendar nuevo servicio")
 
-    # ── BOTÓN VACIAR CELDAS ──
+    # ── BOTÓN VACIAR — key dinámico para limpiar el form ──
+    if "form_key" not in st.session_state:
+        st.session_state["form_key"] = 0
+
     if st.button("🗑️ Vaciar campos", key="vaciar_campos"):
-        st.session_state["agenda_cliente_sel"] = ""
+        st.session_state["form_key"] += 1
         st.session_state["agenda_limpiar"] = True
         st.rerun()
 
@@ -1713,18 +1746,16 @@ elif pagina == "Agenda":
     clientes_info["ID Cliente"] = clientes_info["ID Cliente"].astype(int)
     clientes_info = clientes_info.sort_values("Nombre")
 
-    # Lista con ID + Nombre
     opciones_clientes = [""] + [
         f"[{int(row['ID Cliente'])}] {row['Nombre']}"
         for _, row in clientes_info.iterrows()
     ]
 
-    cliente_sel_key = st.session_state.get("agenda_cliente_sel", "")
     cliente_sel = st.selectbox(
         "Cliente existente (opcional) — busca por nombre o ID",
         opciones_clientes,
-        index=0 if limpiar else opciones_clientes.index(cliente_sel_key) if cliente_sel_key in opciones_clientes else 0,
-        key="cliente_agenda_sel"
+        index=0,
+        key=f"cliente_agenda_sel_{st.session_state['form_key']}"
     )
 
     tel_default = ""
@@ -1732,8 +1763,7 @@ elif pagina == "Agenda":
     id_cliente_default = None
     nombre_default = ""
 
-    if cliente_sel:
-        # Extraer ID del string "[123] Nombre"
+    if cliente_sel and not limpiar:
         try:
             id_extraido = int(cliente_sel.split("]")[0].replace("[", "").strip())
             fila_cliente = clientes_info[clientes_info["ID Cliente"] == id_extraido]
@@ -1747,10 +1777,10 @@ elif pagina == "Agenda":
 
     ORIGENES = ["Rep", "Int", "Rec", "Face", "Amigo", "Club", "Maristas"]
 
-    with st.form("agendar_servicio"):
-        nombre = st.text_input("Nombre del cliente", value="" if limpiar else nombre_default)
-        telefono = st.text_input("Teléfono(s)", value="" if limpiar else tel_default)
-        direccion = st.text_input("Dirección", value="" if limpiar else dir_default)
+    with st.form(f"agendar_servicio_{st.session_state['form_key']}"):
+        nombre = st.text_input("Nombre del cliente", value=nombre_default)
+        telefono = st.text_input("Teléfono(s)", value=tel_default)
+        direccion = st.text_input("Dirección", value=dir_default)
         servicio = st.text_input("Servicio")
         origen_input = st.selectbox(
             "Origen",
@@ -1758,10 +1788,12 @@ elif pagina == "Agenda":
             index=0 if cliente_sel else 1
         )
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             fecha = st.date_input("Fecha", datetime.now())
         with col2:
+            hora = st.time_input("Hora", value=None)
+        with col3:
             monto = st.number_input("Monto", min_value=0)
 
         submitted = st.form_submit_button("Agendar")
@@ -1773,14 +1805,16 @@ elif pagina == "Agenda":
                 try:
                     client_auth = get_supabase_auth()
 
-                    # Determinar ID cliente
+                    # ── ID cliente correcto ──
                     id_cliente = None
                     if id_cliente_default and str(id_cliente_default) not in ["", "nan", "None"]:
                         id_cliente = int(id_cliente_default)
                     else:
-                        max_id_resp = supabase.table("clientes")\
+                        # Buscar el max ID en Supabase para asignar el siguiente
+                        max_id_resp = client_auth.table("clientes")\
                             .select("cliente_id")\
                             .eq("empresa_id", st.session_state["empresa_id"])\
+                            .not_.is_("cliente_id", "null")\
                             .order("cliente_id", desc=True)\
                             .limit(1)\
                             .execute()
@@ -1788,6 +1822,8 @@ elif pagina == "Agenda":
                             id_cliente = int(max_id_resp.data[0]["cliente_id"]) + 1
                         else:
                             id_cliente = 1
+
+                    hora_str = hora.strftime("%H:%M") if hora else None
 
                     client_auth.table("clientes").insert({
                         "empresa_id": st.session_state["empresa_id"],
@@ -1800,10 +1836,13 @@ elif pagina == "Agenda":
                         "monto": float(monto),
                         "origen": origen_input,
                         "año": fecha.year,
-                        "realizado": False
+                        "realizado": False,
+                        "hora": hora_str
                     }).execute()
 
-                    st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) el {fecha.strftime('%d/%m/%Y')}")
+                    fecha_txt = fecha_relativa(fecha)
+                    hora_txt = f" a las {hora_str}" if hora_str else ""
+                    st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha_txt}{hora_txt}")
                     st.cache_data.clear()
                     if "evento_seleccionado" in st.session_state:
                         del st.session_state["evento_seleccionado"]
@@ -1827,8 +1866,12 @@ elif pagina == "Agenda":
     for _, row in df_cal.iterrows():
         realizado = row.get("realizado", False)
         color = "#2B5BAA" if realizado else "#F59E0B"
+        hora_ev = limpiar_valor(row.get("hora"))
+        titulo = f"{'✅' if realizado else '⏳'} {limpiar_valor(row.get('Nombre'))} — {limpiar_valor(row.get('Servicio'))}"
+        if hora_ev:
+            titulo += f" ({hora_ev})"
         eventos.append({
-            "title": f"{'✅' if realizado else '⏳'} {limpiar_valor(row.get('Nombre'))} — {limpiar_valor(row.get('Servicio'))}",
+            "title": titulo,
             "start": row["Fecha"].strftime("%Y-%m-%d"),
             "end": row["Fecha"].strftime("%Y-%m-%d"),
             "backgroundColor": color,
@@ -1870,6 +1913,9 @@ elif pagina == "Agenda":
         if not df_evento.empty:
             row = df_evento.iloc[0]
             realizado = row.get("realizado", False)
+            hora_row = limpiar_valor(row.get("hora"))
+            fecha_row = row["Fecha"].date() if pd.notnull(row["Fecha"]) else None
+            fecha_txt = fecha_relativa(fecha_row) if fecha_row else ""
 
             st.markdown("---")
             st.markdown("### 📋 Detalle del servicio")
@@ -1882,7 +1928,7 @@ elif pagina == "Agenda":
                 **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
                 **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
                 **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
-                **📅 Fecha:** {row['Fecha'].strftime('%d/%m/%Y')}  
+                **📅 Fecha:** {fecha_txt}{f' a las {hora_row}' if hora_row else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **🔍 Origen:** {limpiar_valor(row.get('Origen'))}  
                 **💬 Comentarios:** {limpiar_valor(row.get('Comentarios con llamada posterior a venta'))}  
@@ -1896,10 +1942,10 @@ elif pagina == "Agenda":
             tel_ev = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
             if tel_ev and tel_ev not in ["nan", ""]:
                 tel_ev = "52" + tel_ev
-                mensaje_template = plantillas.get("confirmacion", "Hola {nombre}")
-                mensaje = mensaje_template.format(nombre=limpiar_valor(row.get("Nombre")), empresa=empresa)
-                url = f"https://wa.me/{tel_ev}?text={urllib.parse.quote(mensaje)}"
-                st.markdown(f"[💬 Enviar WhatsApp]({url})")
+                hora_msg = f" a las {hora_row}" if hora_row else ""
+                mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para {fecha_txt}{hora_msg}."
+                url = f"https://wa.me/{tel_ev}?text={urllib.parse.quote(mensaje_confirmacion)}"
+                st.markdown(f"[💬 Enviar recordatorio]({url})")
 
             # ── MARCAR COMO REALIZADO ──
             if not realizado:
@@ -1932,23 +1978,17 @@ elif pagina == "Agenda":
 
                             origen_real = limpiar_valor(row.get("Origen"), "Int")
                             if origen_real.lower() in ["agenda", ""]:
-                                origen_real = "Rep" if id_cliente_default else "Int"
+                                origen_real = "Int"
 
                             id_cli = row.get("ID Cliente")
                             id_cli_limpio = int(id_cli) if id_cli and str(id_cli) not in ["", "nan", "None"] and pd.notnull(id_cli) else ""
 
-                            # Verificar si es repetidor
-                            es_repetidor = False
-                            if id_cli_limpio:
-                                servicios_previos = df_a[
-                                    (df_a["ID Cliente"] == id_cli) &
-                                    (df_a["id"].astype(str) != str(id_click))
-                                ]
-                                es_repetidor = len(servicios_previos) > 0
+                            # Verde SOLO si origen es Rep
+                            es_rep = origen_real.lower() == "rep"
 
-                            # Verificar comentarios negativos
+                            # Rojo si comentarios negativos
                             comentario = limpiar_valor(row.get("Comentarios con llamada posterior a venta"), "").lower()
-                            cliente_no_contactar = any(palabra in comentario for palabra in [
+                            cliente_no_contactar = any(p in comentario for p in [
                                 "no se llama", "no contactar", "no vuelve", "cliente no deseable", "muy mal"
                             ])
 
@@ -1979,12 +2019,11 @@ elif pagina == "Agenda":
 
                             worksheet.insert_row(nueva_fila, primera_vacia)
 
-                            # Color columna A
                             if cliente_no_contactar:
                                 worksheet.format(f"A{primera_vacia}", {
                                     "backgroundColor": {"red": 0.9, "green": 0.2, "blue": 0.2}
                                 })
-                            elif es_repetidor:
+                            elif es_rep:
                                 worksheet.format(f"A{primera_vacia}", {
                                     "backgroundColor": {"red": 0.2, "green": 0.8, "blue": 0.2}
                                 })
@@ -2045,32 +2084,35 @@ elif pagina == "Agenda":
                     except Exception as e:
                         st.error(f"Error al editar: {e}")
 
-            # ── EDITAR FECHA ──
-            st.markdown("#### 📅 Corregir fecha del servicio")
+            # ── EDITAR FECHA Y HORA ──
+            st.markdown("#### 📅 Corregir fecha y hora del servicio")
             with st.form("editar_fecha_form"):
-                nueva_fecha = st.date_input("Nueva fecha:", value=row["Fecha"].date())
-                confirmar_edicion = st.form_submit_button("📅 Cambiar fecha", use_container_width=True)
+                col1, col2 = st.columns(2)
+                with col1:
+                    nueva_fecha = st.date_input("Nueva fecha:", value=row["Fecha"].date())
+                with col2:
+                    nueva_hora = st.time_input("Nueva hora:", value=None)
+                confirmar_edicion = st.form_submit_button("📅 Cambiar fecha/hora", use_container_width=True)
 
                 if confirmar_edicion:
-                    if nueva_fecha == row["Fecha"].date():
-                        st.warning("La fecha es la misma, no hay nada que cambiar.")
-                    else:
-                        try:
-                            client_auth = get_supabase_auth()
-                            client_auth.table("clientes").update({
-                                "fecha": nueva_fecha.isoformat(),
-                                "año": nueva_fecha.year
-                            }).eq("id", id_click).execute()
+                    try:
+                        client_auth = get_supabase_auth()
+                        nueva_hora_str = nueva_hora.strftime("%H:%M") if nueva_hora else None
+                        client_auth.table("clientes").update({
+                            "fecha": nueva_fecha.isoformat(),
+                            "año": nueva_fecha.year,
+                            "hora": nueva_hora_str
+                        }).eq("id", id_click).execute()
 
-                            st.success(f"✅ Fecha cambiada a {nueva_fecha.strftime('%d/%m/%Y')}")
-                            st.cache_data.clear()
-                            del st.session_state["evento_seleccionado"]
-                            st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
-                            import time as t
-                            t.sleep(1)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error al cambiar fecha: {e}")
+                        st.success(f"✅ Fecha cambiada a {nueva_fecha.strftime('%d/%m/%Y')}")
+                        st.cache_data.clear()
+                        del st.session_state["evento_seleccionado"]
+                        st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
+                        import time as t
+                        t.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al cambiar fecha: {e}")
 
             # ── ELIMINAR ──
             st.markdown("#### 🗑️ Eliminar servicio")
