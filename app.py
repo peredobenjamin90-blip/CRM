@@ -1593,18 +1593,10 @@ elif pagina == "Agenda":
                 tel = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
                 if tel and tel != "nan":
                     tel_completo = "52" + tel
-                    # Mensaje con fecha relativa
                     fecha_msg = fecha_relativa(fecha_row) if fecha_row else ""
                     hora_msg = f" a las {hora_str}" if hora_str else ""
-                    mensaje_template = plantillas.get("confirmacion",
-                        f"Hola {{nombre}}, confirmamos tu servicio con {{empresa}} para {fecha_msg}{hora_msg}.")
-                    mensaje = mensaje_template.format(
-                        nombre=limpiar_valor(row.get("Nombre")),
-                        empresa=empresa,
-                        fecha=fecha_msg,
-                        hora=hora_msg
-                    )
-                    url = f"https://wa.me/{tel_completo}?text={urllib.parse.quote(mensaje)}"
+                    mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para {fecha_msg}{hora_msg}."
+                    url = f"https://wa.me/{tel_completo}?text={urllib.parse.quote(mensaje_confirmacion)}"
                     st.markdown(f"[💬 Enviar WhatsApp]({url})")
                 else:
                     st.warning("Cliente sin teléfono")
@@ -1612,7 +1604,6 @@ elif pagina == "Agenda":
 
     st.markdown("### ➕ Agendar nuevo servicio")
 
-    # ── BOTÓN VACIAR — key dinámico para limpiar el form ──
     if "form_key" not in st.session_state:
         st.session_state["form_key"] = 0
 
@@ -1637,13 +1628,31 @@ elif pagina == "Agenda":
     clientes_info["ID Cliente"] = clientes_info["ID Cliente"].astype(int)
     clientes_info = clientes_info.sort_values("Nombre")
 
+    # ── BUSCADOR ANTES DEL SELECTBOX ──
+    buscar_agenda = st.text_input(
+        "🔍 Filtrar cliente por nombre o ID",
+        key=f"buscar_agenda_{st.session_state['form_key']}"
+    )
+
+    if buscar_agenda and not limpiar:
+        if buscar_agenda.isdigit():
+            clientes_filtrados = clientes_info[
+                clientes_info["ID Cliente"].astype(str).str.startswith(buscar_agenda)
+            ].sort_values("ID Cliente", ascending=True)
+        else:
+            clientes_filtrados = clientes_info[
+                clientes_info["Nombre"].str.contains(buscar_agenda, case=False, na=False)
+            ].sort_values("Nombre")
+    else:
+        clientes_filtrados = clientes_info
+
     opciones_clientes = [""] + [
         f"[{int(row['ID Cliente'])}] {row['Nombre']}"
-        for _, row in clientes_info.iterrows()
+        for _, row in clientes_filtrados.iterrows()
     ]
 
     cliente_sel = st.selectbox(
-        "Cliente existente (opcional) — busca por nombre o ID",
+        "Cliente existente (opcional)",
         opciones_clientes,
         index=0,
         key=f"cliente_agenda_sel_{st.session_state['form_key']}"
@@ -1696,12 +1705,10 @@ elif pagina == "Agenda":
                 try:
                     client_auth = get_supabase_auth()
 
-                    # ── ID cliente correcto ──
                     id_cliente = None
                     if id_cliente_default and str(id_cliente_default) not in ["", "nan", "None"]:
                         id_cliente = int(id_cliente_default)
                     else:
-                        # Buscar el max ID en Supabase para asignar el siguiente
                         max_id_resp = client_auth.table("clientes")\
                             .select("cliente_id")\
                             .eq("empresa_id", st.session_state["empresa_id"])\
@@ -1838,7 +1845,6 @@ elif pagina == "Agenda":
                 url = f"https://wa.me/{tel_ev}?text={urllib.parse.quote(mensaje_confirmacion)}"
                 st.markdown(f"[💬 Enviar recordatorio]({url})")
 
-            # ── MARCAR COMO REALIZADO ──
             if not realizado:
                 if st.button("✅ Marcar como realizado y guardar en Sheets", use_container_width=True, type="primary"):
                     try:
@@ -1874,10 +1880,8 @@ elif pagina == "Agenda":
                             id_cli = row.get("ID Cliente")
                             id_cli_limpio = int(id_cli) if id_cli and str(id_cli) not in ["", "nan", "None"] and pd.notnull(id_cli) else ""
 
-                            # Verde SOLO si origen es Rep
                             es_rep = origen_real.lower() == "rep"
 
-                            # Rojo si comentarios negativos
                             comentario = limpiar_valor(row.get("Comentarios con llamada posterior a venta"), "").lower()
                             cliente_no_contactar = any(p in comentario for p in [
                                 "no se llama", "no contactar", "no vuelve", "cliente no deseable", "muy mal"
@@ -1935,7 +1939,6 @@ elif pagina == "Agenda":
             else:
                 st.success("✅ Este servicio ya fue realizado y guardado en Sheets.")
 
-            # ── EDITAR DATOS ──
             st.markdown("#### ✏️ Editar datos del servicio")
             with st.form("editar_servicio_form"):
                 edit_nombre = st.text_input("Nombre", value=limpiar_valor(row.get("Nombre")))
@@ -1975,7 +1978,6 @@ elif pagina == "Agenda":
                     except Exception as e:
                         st.error(f"Error al editar: {e}")
 
-            # ── EDITAR FECHA Y HORA ──
             st.markdown("#### 📅 Corregir fecha y hora del servicio")
             with st.form("editar_fecha_form"):
                 col1, col2 = st.columns(2)
@@ -2005,7 +2007,6 @@ elif pagina == "Agenda":
                     except Exception as e:
                         st.error(f"Error al cambiar fecha: {e}")
 
-            # ── ELIMINAR ──
             st.markdown("#### 🗑️ Eliminar servicio")
             with st.form("borrar_form"):
                 st.warning("Esta acción no se puede deshacer.")
