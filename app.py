@@ -1001,6 +1001,8 @@ elif pagina == "Clientes":
             historial["Nombre"].str.contains(cliente_buscar, case=False, na=False) |
             historial["ID Cliente"].astype(str).str.contains(cliente_buscar, na=False)
         ]
+        if cliente_buscar.isdigit():
+            historial = historial.sort_values(by="ID Cliente", ascending=True)
 
     historial_mostrar = historial.copy()
     historial_mostrar["Total_Gastado"] = historial_mostrar["Total_Gastado"].apply(lambda x: f"${x:,.0f}")
@@ -1046,12 +1048,10 @@ elif pagina == "Clientes":
         col3.metric("Última visita", ultima.strftime("%d/%m/%Y") if pd.notnull(ultima) else "-")
         col4.metric("Ticket promedio", f"${promedio:,.0f}")
 
-        # Datos actuales del cliente
         ultima_fila = df_cliente.iloc[0]
         tel_actual = str(ultima_fila.get("Tel", ""))
         dir_actual = str(ultima_fila.get("Dirección", ""))
 
-        # ── EDITAR CLIENTE ──
         st.markdown("### ✏️ Editar datos del cliente")
         with st.form("editar_cliente_form"):
             nuevo_nombre = st.text_input("Nombre", value=cliente_sel)
@@ -1066,8 +1066,6 @@ elif pagina == "Clientes":
                         st.secrets["SUPABASE_KEY"]
                     )
                     client_auth.postgrest.auth(st.session_state.get("access_token", ""))
-
-                    # Actualizar todos los registros de este cliente
                     client_auth.table("clientes").update({
                         "nombre": nuevo_nombre,
                         "tel": nuevo_tel,
@@ -1216,7 +1214,6 @@ elif pagina == "Clientes":
             st.link_button("💬 Abrir WhatsApp", url)
         else:
             st.warning("Este cliente no tiene teléfono válido")
-
     # ── FOLLOW UP ──
 elif pagina == "Follow Up":
     st.title("Clientes para Follow Up")
