@@ -1214,6 +1214,42 @@ elif pagina == "Clientes":
             st.link_button("💬 Abrir WhatsApp", url)
         else:
             st.warning("Este cliente no tiene teléfono válido")
+elif pagina == "Servicios":
+    st.title("Servicios más vendidos")
+    import collections
+
+    año_serv = st.selectbox("Año:", años_sin_2026)
+    df_s = df[df["Año"] == año_serv].copy()
+    df_s = df_s[df_s["Servicio"].notna()]
+    df_s = df_s[df_s["Servicio"].astype(str).str.strip() != ""]
+
+    categorias_config = USUARIOS[st.session_state["usuario"]].get("categorias", {})
+    filas_expandidas = []
+    for _, row in df_s.iterrows():
+        s = str(row["Servicio"]).lower()
+        encontradas = set()
+        for categoria, keywords in categorias_config.items():
+            for kw in keywords:
+                if kw in s:
+                    encontradas.add(categoria)
+        if not encontradas:
+            encontradas.add("Otro")
+        for cat in encontradas:
+            filas_expandidas.append(cat)
+
+    conteo = collections.Counter(filas_expandidas)
+    cats = pd.DataFrame(conteo.items(), columns=["Categoria", "Cantidad"])
+    cats = cats.sort_values("Cantidad", ascending=False)
+
+    fig = px.pie(cats, names="Categoria", values="Cantidad", title="Servicios más vendidos", hole=0.3)
+    fig.update_traces(textposition="inside", textinfo="percent+label")
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font_color="#F0F2F6"
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.dataframe(cats, use_container_width=True, hide_index=True)    
     # ── FOLLOW UP ──
 elif pagina == "Follow Up":
     st.title("Clientes para Follow Up")
