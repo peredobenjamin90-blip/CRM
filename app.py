@@ -87,7 +87,8 @@ st.markdown("""
     .stDateInput label,
     .stSlider label,
     .stCheckbox label,
-    .stTextArea label {
+    .stTextArea label,
+    .stTimeInput label {
         color: #F0F2F6 !important;
         font-size: 15px !important;
         font-weight: 500 !important;
@@ -104,13 +105,55 @@ st.markdown("""
         font-size: 15px !important;
     }
 
-    /* ── SELECTBOX ── */
+    /* ── SELECTBOX CERRADO ── */
     .stSelectbox > div > div {
         background-color: #1A1D2E !important;
         border: 1px solid #4D4F65 !important;
         border-radius: 8px !important;
         color: #F0F2F6 !important;
         font-size: 15px !important;
+    }
+
+    /* ── DROPDOWN ABIERTO — fondo blanco letra negra ── */
+    [data-baseweb="popover"] * {
+        background-color: #FFFFFF !important;
+        color: #111111 !important;
+    }
+    [data-baseweb="menu"] {
+        background-color: #FFFFFF !important;
+    }
+    [data-baseweb="menu"] li {
+        color: #111111 !important;
+        font-size: 15px !important;
+        font-weight: 500 !important;
+    }
+    [data-baseweb="menu"] li:hover {
+        background-color: #E8E8F0 !important;
+        color: #000000 !important;
+    }
+    [data-baseweb="option"] {
+        color: #111111 !important;
+        background-color: #FFFFFF !important;
+        font-size: 15px !important;
+        font-weight: 500 !important;
+    }
+    [data-baseweb="option"]:hover,
+    [data-baseweb="option"][aria-selected="true"] {
+        background-color: #E8E8F0 !important;
+        color: #000000 !important;
+    }
+    /* Forzar texto negro en TODOS los elementos dentro del popover */
+    [data-baseweb="popover"] span,
+    [data-baseweb="popover"] div,
+    [data-baseweb="popover"] p,
+    [data-baseweb="popover"] li {
+        color: #111111 !important;
+        background-color: transparent !important;
+    }
+    /* Excepción: el highlight de selección actual */
+    [aria-selected="true"] {
+        background-color: #EFEFFF !important;
+        color: #111111 !important;
     }
 
     /* ── BOTONES NORMALES ── */
@@ -130,7 +173,7 @@ st.markdown("""
         border: none;
     }
 
-    /* ── FORM SUBMIT BUTTON (login y otros forms) ── */
+    /* ── FORM SUBMIT BUTTON ── */
     [data-testid="stFormSubmitButton"] > button {
         background: linear-gradient(135deg, #6C63FF 0%, #A78BFA 100%) !important;
         color: white !important;
@@ -213,30 +256,21 @@ st.markdown("""
         border-radius: 8px !important;
         color: #FFFFFF !important;
     }
-    /* ── DROPDOWN OPCIONES (fondo blanco, letra negra) ── */
-    [data-baseweb="popover"] {
-        background-color: #FFFFFF !important;
-    }
-    [data-baseweb="menu"] {
-        background-color: #FFFFFF !important;
-    }
-    [data-baseweb="option"] {
-        background-color: #FFFFFF !important;
-        color: #000000 !important;
-        font-size: 15px !important;
-    }
-    [data-baseweb="option"]:hover {
-        background-color: #F0F0F0 !important;
-        color: #000000 !important;
-    }
-    /* Placeholder text */
+
+    /* ── MARKDOWN BOLD ── */
+    strong { color: #FFFFFF !important; }
+
+    /* ── PLACEHOLDER ── */
     input::placeholder {
         color: #9B9DB0 !important;
         opacity: 1 !important;
     }
 
-    /* ── MARKDOWN BOLD ── */
-    strong { color: #FFFFFF !important; }
+    /* ── PÁGINA SERVICIOS — fondo visible ── */
+    .js-plotly-plot {
+        background-color: #1A1D2E !important;
+        border-radius: 12px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
