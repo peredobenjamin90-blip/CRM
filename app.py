@@ -1586,16 +1586,16 @@ elif pagina == "Agenda":
                 **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
                 **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
                 **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
-                **📅 Fecha:** {fecha_txt}{f' a las {hora_str}' if hora_str else ''}  
+                **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' a las {hora_str}' if hora_str else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **Estado:** {estado}
                 """)
                 tel = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
                 if tel and tel != "nan":
                     tel_completo = "52" + tel
-                    fecha_msg = fecha_relativa(fecha_row) if fecha_row else ""
                     hora_msg = f" a las {hora_str}" if hora_str else ""
-                    mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para {fecha_msg}{hora_msg}."
+                    fecha_completa = f"{fecha_row.strftime('%d/%m/%Y')} ({fecha_txt})" if fecha_row else ""
+                    mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para el {fecha_completa}{hora_msg}."
                     url = f"https://wa.me/{tel_completo}?text={urllib.parse.quote(mensaje_confirmacion)}"
                     st.markdown(f"[💬 Enviar WhatsApp]({url})")
                 else:
@@ -1628,7 +1628,6 @@ elif pagina == "Agenda":
     clientes_info = clientes_info.dropna(subset=["ID Cliente"])
     clientes_info["ID Cliente"] = clientes_info["ID Cliente"].astype(int)
 
-    # ── BUSCADOR ──
     buscar_agenda = st.text_input(
         "🔍 Escribe nombre o ID para buscar cliente",
         key=f"buscar_agenda_{st.session_state['form_key']}"
@@ -1655,7 +1654,6 @@ elif pagina == "Agenda":
                 st.session_state["agenda_cliente_dir"] = str(fila["Direccion"]) if pd.notnull(fila["Direccion"]) else ""
                 st.rerun()
 
-    # ── CLIENTE SELECCIONADO ──
     id_cliente_default = None
     nombre_default = ""
     tel_default = ""
@@ -1732,7 +1730,7 @@ elif pagina == "Agenda":
 
                     fecha_txt = fecha_relativa(fecha)
                     hora_txt = f" a las {hora_str}" if hora_str else ""
-                    st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha_txt}{hora_txt}")
+                    st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt}")
                     st.cache_data.clear()
                     for k in ["agenda_cliente_id", "agenda_cliente_nombre", "agenda_cliente_tel", "agenda_cliente_dir"]:
                         st.session_state.pop(k, None)
@@ -1820,7 +1818,7 @@ elif pagina == "Agenda":
                 **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
                 **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
                 **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
-                **📅 Fecha:** {fecha_txt}{f' a las {hora_row}' if hora_row else ''}  
+                **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' a las {hora_row}' if hora_row else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **🔍 Origen:** {limpiar_valor(row.get('Origen'))}  
                 **💬 Comentarios:** {limpiar_valor(row.get('Comentarios con llamada posterior a venta'))}  
@@ -1835,7 +1833,8 @@ elif pagina == "Agenda":
             if tel_ev and tel_ev not in ["nan", ""]:
                 tel_ev = "52" + tel_ev
                 hora_msg = f" a las {hora_row}" if hora_row else ""
-                mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para {fecha_txt}{hora_msg}."
+                fecha_completa_ev = f"{fecha_row.strftime('%d/%m/%Y')} ({fecha_txt})" if fecha_row else ""
+                mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para el {fecha_completa_ev}{hora_msg}."
                 url = f"https://wa.me/{tel_ev}?text={urllib.parse.quote(mensaje_confirmacion)}"
                 st.markdown(f"[💬 Enviar recordatorio]({url})")
 
