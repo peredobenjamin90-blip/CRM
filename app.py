@@ -1626,37 +1626,41 @@ elif pagina == "Agenda":
     clientes_info["ID Cliente"] = pd.to_numeric(clientes_info["ID Cliente"], errors="coerce")
     clientes_info = clientes_info.dropna(subset=["ID Cliente"])
     clientes_info["ID Cliente"] = clientes_info["ID Cliente"].astype(int)
-    clientes_info = clientes_info.sort_values("Nombre")
 
-    # ── BUSCADOR ANTES DEL SELECTBOX ──
+    # ── BUSCADOR ──
     buscar_agenda = st.text_input(
-        "🔍 Filtrar cliente por nombre o ID",
+        "🔍 Escribe nombre o ID para filtrar",
         key=f"buscar_agenda_{st.session_state['form_key']}"
     )
 
     if buscar_agenda and not limpiar:
-        if buscar_agenda.isdigit():
+        if buscar_agenda.strip().isdigit():
             clientes_filtrados = clientes_info[
-                clientes_info["ID Cliente"].astype(str).str.startswith(buscar_agenda)
+                clientes_info["ID Cliente"].astype(str).str.startswith(buscar_agenda.strip())
             ].sort_values("ID Cliente", ascending=True)
         else:
             clientes_filtrados = clientes_info[
-                clientes_info["Nombre"].str.contains(buscar_agenda, case=False, na=False)
+                clientes_info["Nombre"].str.contains(buscar_agenda.strip(), case=False, na=False)
             ].sort_values("Nombre")
     else:
-        clientes_filtrados = clientes_info
+        clientes_filtrados = clientes_info.sort_values("Nombre")
 
-    opciones_clientes = [""] + [
+    opciones_clientes = ["— Selecciona un cliente —"] + [
         f"[{int(row['ID Cliente'])}] {row['Nombre']}"
         for _, row in clientes_filtrados.iterrows()
     ]
 
-    cliente_sel = st.selectbox(
+    st.caption(f"{len(clientes_filtrados)} cliente(s) encontrados")
+
+    cliente_sel_idx = st.selectbox(
         "Cliente existente (opcional)",
-        opciones_clientes,
+        range(len(opciones_clientes)),
+        format_func=lambda i: opciones_clientes[i],
         index=0,
         key=f"cliente_agenda_sel_{st.session_state['form_key']}"
     )
+
+    cliente_sel = opciones_clientes[cliente_sel_idx] if cliente_sel_idx > 0 else ""
 
     tel_default = ""
     dir_default = ""
