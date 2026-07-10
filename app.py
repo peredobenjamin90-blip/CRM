@@ -1218,77 +1218,60 @@ elif pagina == "Clientes":
 elif pagina == "Follow Up":
     st.title("Clientes para Follow Up")
     import urllib.parse
-    import json
     import base64
     import streamlit.components.v1 as components
-    from datetime import datetime
 
     if "followup_historial" not in st.session_state:
         st.session_state["followup_historial"] = []
     if "followup_resultados" not in st.session_state:
         st.session_state["followup_resultados"] = []
 
-    ultimo = df.groupby("Nombre").agg(Fecha=("Fecha","max")).reset_index()
-    ultimo.columns = ["Nombre", "Ultimo servicio"]
+    df_fu = df.copy()
+    df_fu["Fecha"] = pd.to_datetime(df_fu["Fecha"], errors="coerce")
+    df_fu["Monto"] = pd.to_numeric(df_fu["Monto"], errors="coerce")
+    df_fu["ID Cliente"] = pd.to_numeric(df_fu["ID Cliente"], errors="coerce")
 
-    tels = df[["Nombre","Tel"]].drop_duplicates(subset="Nombre")
-    comentarios = df.sort_values("Fecha").drop_duplicates(subset="Nombre", keep="last")[
-        ["Nombre","Comentarios con llamada posterior a venta"]
-    ]
+    # Agrupar por ID Cliente para unir nombres distintos del mismo cliente
+    ultimo = df_fu.groupby("ID Cliente").agg(
+        Nombre=("Nombre", "last"),
+        Fecha=("Fecha", "max"),
+        Tel=("Tel", "last"),
+        Comentario=("Comentarios con llamada posterior a venta", "last")
+    ).reset_index()
+    ultimo.columns = ["ID Cliente", "Nombre", "Ultimo servicio", "Tel", "Comentario"]
 
-    ultimo = ultimo.merge(tels, on="Nombre", how="left")
-    ultimo = ultimo.merge(comentarios, on="Nombre", how="left")
-    ultimo.columns = ["Nombre", "Ultimo servicio", "Tel", "Comentario"]
-
-    # ── Si viene del banner, usar ese umbral; si no, el slider ──
     meses_default = st.session_state.pop("followup_meses_override", None)
-
     col1, col2 = st.columns(2)
     with col1:
-        meses = st.slider(
-            "Sin servicio hace más de X meses:",
-            1, 24,
-            meses_default if meses_default is not None else 6
-        )
+        meses = st.slider("Sin servicio hace más de X meses:", 1, 24, meses_default if meses_default is not None else 6)
     with col2:
-        mes_filtro = st.selectbox(
-            "Mes del último servicio:",
-            ["Todos","Enero","Febrero","Marzo","Abril","Mayo","Junio",
-             "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-        )
+        mes_filtro = st.selectbox("Mes del último servicio:", ["Todos","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"])
+
+    # Búsqueda por nombre o ID
+    buscar_followup = st.text_input("🔍 Buscar por nombre o ID", key="buscar_followup")
 
     fecha_limite = datetime.now() - timedelta(days=meses * 30)
     sin_servicio = ultimo[ultimo["Ultimo servicio"] < fecha_limite].copy()
 
-    meses_dict = {
-        "Enero":1,"Febrero":2,"Marzo":3,"Abril":4,"Mayo":5,"Junio":6,
-        "Julio":7,"Agosto":8,"Septiembre":9,"Octubre":10,"Noviembre":11,"Diciembre":12
-    }
-
+    meses_dict = {"Enero":1,"Febrero":2,"Marzo":3,"Abril":4,"Mayo":5,"Junio":6,
+                  "Julio":7,"Agosto":8,"Septiembre":9,"Octubre":10,"Noviembre":11,"Diciembre":12}
     if mes_filtro != "Todos":
+        sin_servicio = sin_servicio[sin_servicio["Ultimo servicio"].dt.month == meses_dict[mes_filtro]]
+
+    if buscar_followup:
         sin_servicio = sin_servicio[
-            sin_servicio["Ultimo servicio"].dt.month == meses_dict[mes_filtro]
+            sin_servicio["Nombre"].str.contains(buscar_followup, case=False, na=False) |
+            sin_servicio["ID Cliente"].astype(str).str.contains(buscar_followup, na=False)
         ]
+        if buscar_followup.isdigit():
+            sin_servicio = sin_servicio.sort_values(by="ID Cliente", ascending=True)
 
     sin_servicio = sin_servicio.sort_values("Ultimo servicio")
 
-    hoy = datetime.now()
-    def get_columna_followup(ultima_fecha):
-        if pd.isna(ultima_fecha):
-            return 13
-        meses_sin = (hoy - ultima_fecha).days / 30
-        if meses_sin < 3:
-            return 11
-        elif meses_sin < 8:
-            return 12
-        else:
-            return 13
-
     st.metric("Clientes a contactar", len(sin_servicio))
-    st.dataframe(sin_servicio, use_container_width=True)
+    st.dataframe(sin_servicio[["ID Cliente", "Nombre", "Tel", "Ultimo servicio", "Comentario"]], use_container_width=True, hide_index=True)
 
     st.markdown("### 🚀 Enviar mensaje a todos")
-
     PLANTILLAS_MENSAJES = {
         "Seguimiento": "Hola {nombre}, te contactamos de {empresa}. Solo para dar seguimiento a tu último servicio. ¿Cómo fue tu experiencia?",
         "Recordatorio": "Hola {nombre}, en {empresa} te recordamos que ya pasó tiempo desde tu último servicio. ¿Te gustaría agendar?",
@@ -1296,21 +1279,9 @@ elif pagina == "Follow Up":
         "Reactivación": "Hola {nombre}, te extrañamos en {empresa} 😄 Tenemos disponibilidad esta semana. ¿Agendamos?"
     }
 
-    plantilla_masiva = st.selectbox(
-        "Plantilla:",
-        list(PLANTILLAS_MENSAJES.keys()),
-        key="plantilla_masiva_followup"
-    )
-
-    mensaje_masivo_preview = PLANTILLAS_MENSAJES[plantilla_masiva].format(
-        nombre="[Nombre]",
-        empresa=st.session_state.get("empresa", "nuestro negocio")
-    )
-    mensaje_masivo_edit = st.text_area(
-        "Edita el mensaje ({nombre} y {empresa} se reemplazan automáticamente):",
-        value=mensaje_masivo_preview,
-        key="mensaje_masivo_edit"
-    )
+    plantilla_masiva = st.selectbox("Plantilla:", list(PLANTILLAS_MENSAJES.keys()), key="plantilla_masiva_followup")
+    mensaje_masivo_preview = PLANTILLAS_MENSAJES[plantilla_masiva].format(nombre="[Nombre]", empresa=st.session_state.get("empresa", "nuestro negocio"))
+    mensaje_masivo_edit = st.text_area("Edita el mensaje ({nombre} y {empresa} se reemplazan automáticamente):", value=mensaje_masivo_preview, key="mensaje_masivo_edit")
 
     TAMANO_BLOQUE = 20
 
@@ -1322,31 +1293,24 @@ elif pagina == "Follow Up":
         ].reset_index(drop=True)
 
         total_bloques = (len(clientes_validos) + TAMANO_BLOQUE - 1) // TAMANO_BLOQUE
-
         st.caption(f"📦 {len(clientes_validos)} clientes divididos en {total_bloques} bloque(s) de {TAMANO_BLOQUE}")
 
         bloque_sel = st.selectbox(
             "Selecciona bloque a enviar:",
-            [f"Bloque {i+1} ({i*TAMANO_BLOQUE+1}-{min((i+1)*TAMANO_BLOQUE, len(clientes_validos))})"
-             for i in range(total_bloques)],
+            [f"Bloque {i+1} ({i*TAMANO_BLOQUE+1}-{min((i+1)*TAMANO_BLOQUE, len(clientes_validos))})" for i in range(total_bloques)],
             key="bloque_sel"
         )
 
         idx_bloque = int(bloque_sel.split(" ")[1]) - 1
         inicio = idx_bloque * TAMANO_BLOQUE
-        fin = inicio + TAMANO_BLOQUE
-        clientes_bloque = clientes_validos.iloc[inicio:fin]
+        clientes_bloque = clientes_validos.iloc[inicio:inicio + TAMANO_BLOQUE]
 
         urls_bloque = []
         for _, row in clientes_bloque.iterrows():
             tel = str(row["Tel"]).replace("-", "").replace(" ", "").strip()
             tel_completo = "52" + tel
-            mensaje_final = mensaje_masivo_edit.format(
-                nombre=row["Nombre"],
-                empresa=st.session_state.get("empresa", "nuestro negocio")
-            )
-            mensaje_encoded = urllib.parse.quote(mensaje_final)
-            urls_bloque.append((row["Nombre"], f"https://wa.me/{tel_completo}?text={mensaje_encoded}"))
+            mensaje_final = mensaje_masivo_edit.format(nombre=row["Nombre"], empresa=st.session_state.get("empresa", "nuestro negocio"))
+            urls_bloque.append((row["Nombre"], f"https://wa.me/{tel_completo}?text={urllib.parse.quote(mensaje_final)}"))
 
         st.markdown(f"**Clientes en este bloque ({len(clientes_bloque)}):**")
         cols = st.columns(3)
@@ -1354,107 +1318,49 @@ elif pagina == "Follow Up":
             with cols[i % 3]:
                 st.link_button(f"💬 {nombre_btn}", url_btn)
 
-        # ── PANEL DE ENVÍO MASIVO ──
         html_links = ""
         for nombre_link, url_link in urls_bloque:
-            html_links += f"""
-            <a href="{url_link}" target="_blank" style="
-                display:block; background-color:#25D366; color:white;
-                text-decoration:none; padding:12px 16px; border-radius:8px;
-                margin-bottom:8px; font-size:15px; font-family:sans-serif;
-            ">💬 {nombre_link}</a>
-            """
+            html_links += f'<a href="{url_link}" target="_blank" style="display:block;background-color:#25D366;color:white;text-decoration:none;padding:12px 16px;border-radius:8px;margin-bottom:8px;font-size:15px;font-family:sans-serif;">💬 {nombre_link}</a>'
 
-        pagina_html = f"""
-        <!DOCTYPE html><html><head><meta charset="utf-8">
-        <title>WhatsApp Follow Up — Bloque {idx_bloque + 1}</title>
-        <style>
-            body{{font-family:sans-serif;padding:24px;max-width:500px;margin:auto;background:#f9f9f9;}}
-            h2{{color:#128C7E;}}p{{color:#555;margin-bottom:20px;}}
-        </style></head>
-        <body>
-            <h2>📋 Bloque {idx_bloque + 1} — {len(urls_bloque)} contactos</h2>
-            <p>Haz click en cada nombre para abrir WhatsApp Web en una pestaña nueva.</p>
-            {html_links}
-        </body></html>
-        """
+        pagina_html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>WhatsApp Follow Up — Bloque {idx_bloque+1}</title>
+        <style>body{{font-family:sans-serif;padding:24px;max-width:500px;margin:auto;background:#f9f9f9;}}h2{{color:#128C7E;}}p{{color:#555;margin-bottom:20px;}}</style></head>
+        <body><h2>📋 Bloque {idx_bloque+1} — {len(urls_bloque)} contactos</h2><p>Haz click en cada nombre para abrir WhatsApp Web en una pestaña nueva.</p>{html_links}</body></html>"""
 
         b64 = base64.b64encode(pagina_html.encode("utf-8")).decode("utf-8")
-        components.html(f"""
-        <a href="data:text/html;base64,{b64}" target="_blank" style="
-            display:block; background-color:#128C7E; color:white;
-            text-decoration:none; text-align:center; border-radius:8px;
-            padding:14px 24px; font-size:16px; font-family:sans-serif; margin-top:8px;
-        ">🚀 Abrir panel de envío — Bloque {idx_bloque + 1} ({len(urls_bloque)} contactos)</a>
-        """, height=65)
+        components.html(f'<a href="data:text/html;base64,{b64}" target="_blank" style="display:block;background-color:#128C7E;color:white;text-decoration:none;text-align:center;border-radius:8px;padding:14px 24px;font-size:16px;font-family:sans-serif;margin-top:8px;">🚀 Abrir panel de envío — Bloque {idx_bloque+1} ({len(urls_bloque)} contactos)</a>', height=65)
 
         st.markdown("---")
-
-        # ── REGISTRO DE RESULTADO ──
         st.markdown("### ✅ Marcar resultado del bloque")
         st.caption("Registra qué pasó con cada cliente. Esto alimenta el dashboard de conversión en Resumen.")
 
         OPCIONES_RESULTADO = ["Agendó", "No contestó", "Número inválido", "No le interesa", "Pendiente"]
 
-        with st.expander(f"Registrar resultados — Bloque {idx_bloque + 1}"):
+        with st.expander(f"Registrar resultados — Bloque {idx_bloque+1}"):
             resultados_bloque = {}
             for _, row in clientes_bloque.iterrows():
                 resultados_bloque[row["Nombre"]] = st.selectbox(
-                    row["Nombre"],
-                    OPCIONES_RESULTADO,
-                    index=4,
+                    row["Nombre"], OPCIONES_RESULTADO, index=4,
                     key=f"resultado_{row['Nombre']}_{idx_bloque}"
                 )
 
         if st.button(f"✅ Guardar resultados y marcar bloque {idx_bloque+1} como enviado", use_container_width=True):
             timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
-            errores_update = []
-
             with st.spinner("Guardando..."):
                 try:
                     for nombre_r, resultado_r in resultados_bloque.items():
                         st.session_state["followup_resultados"].append({
-                            "nombre": nombre_r,
-                            "resultado": resultado_r,
-                            "timestamp": timestamp,
-                            "bloque": idx_bloque + 1
+                            "nombre": nombre_r, "resultado": resultado_r,
+                            "timestamp": timestamp, "bloque": idx_bloque + 1
                         })
-
-                    client = get_gspread_client()
-                    sheet_ids = st.session_state.get("SHEET_IDS", {})
-
-                    for _, row in clientes_bloque.iterrows():
-                        nombre_cliente = row["Nombre"]
-                        col_followup = get_columna_followup(row["Ultimo servicio"])
-
-                        for año, sheet_id in sheet_ids.items():
-                            if not sheet_id:
-                                continue
-                            try:
-                                sh = client.open_by_key(sheet_id)
-                                worksheet = sh.get_worksheet(0)
-                                celdas = worksheet.findall(nombre_cliente)
-                                for celda in celdas:
-                                    resultado_celda = resultados_bloque.get(nombre_cliente, "Ok")
-                                    worksheet.update_cell(celda.row, col_followup, resultado_celda)
-                            except Exception as e:
-                                errores_update.append(f"{nombre_cliente} ({año}): {e}")
-
                     st.session_state["followup_historial"].append({
-                        "bloque": idx_bloque + 1,
-                        "timestamp": timestamp,
-                        "mes_filtro": mes_filtro,
-                        "clientes": len(clientes_bloque),
+                        "bloque": idx_bloque + 1, "timestamp": timestamp,
+                        "mes_filtro": mes_filtro, "clientes": len(clientes_bloque),
                         "plantilla": plantilla_masiva,
                         "nombres": [n for n, _ in urls_bloque],
                         "resultados": resultados_bloque
                     })
-
                     st.success(f"✅ Bloque {idx_bloque+1} guardado — {timestamp}")
-                    if errores_update:
-                        st.warning(f"Algunos no se pudieron actualizar: {errores_update[:3]}")
                     st.cache_data.clear()
-
                 except Exception as e:
                     st.error(f"Error guardando: {e}")
 
@@ -1470,36 +1376,24 @@ elif pagina == "Follow Up":
                     st.write(", ".join(h['nombres']))
 
     st.markdown("---")
-
     st.markdown("### 💬 Enviar mensaje individual")
-
     if not sin_servicio.empty:
-        cliente_sel = st.selectbox(
-            "Selecciona cliente:",
-            sin_servicio.apply(lambda x: f"{x['Nombre']} - {x['Tel']}", axis=1)
+        opciones_followup = sin_servicio.apply(
+            lambda x: f"[{int(x['ID Cliente'])}] {x['Nombre']} - {x['Tel']}"
+            if pd.notnull(x['ID Cliente']) else f"{x['Nombre']} - {x['Tel']}", axis=1
         )
+        cliente_sel = st.selectbox("Selecciona cliente:", opciones_followup)
+        nombre = cliente_sel.split("] ")[-1].split(" - ")[0] if "]" in cliente_sel else cliente_sel.split(" - ")[0]
+        telefono = cliente_sel.split(" - ")[-1].replace("-", "").replace(" ", "")
 
-        nombre = cliente_sel.split(" - ")[0]
-        telefono = cliente_sel.split(" - ")[1].replace("-", "").replace(" ", "")
-
-        plantilla_ind = st.selectbox(
-            "Selecciona plantilla",
-            list(PLANTILLAS_MENSAJES.keys()),
-            key="plantilla_individual"
-        )
-
+        plantilla_ind = st.selectbox("Selecciona plantilla", list(PLANTILLAS_MENSAJES.keys()), key="plantilla_individual")
         mensaje_base = PLANTILLAS_MENSAJES[plantilla_ind]
-        mensaje_generado = mensaje_base.format(
-            nombre=nombre,
-            empresa=st.session_state.get("empresa", "nuestro negocio")
-        )
-
+        mensaje_generado = mensaje_base.format(nombre=nombre, empresa=st.session_state.get("empresa", "nuestro negocio"))
         mensaje = st.text_area("Mensaje", value=mensaje_generado)
 
         if telefono and telefono != "nan":
             telefono = "52" + telefono
-            mensaje_encoded = urllib.parse.quote(mensaje)
-            whatsapp_url = f"https://wa.me/{telefono}?text={mensaje_encoded}"
+            whatsapp_url = f"https://wa.me/{telefono}?text={urllib.parse.quote(mensaje)}"
             st.link_button("Enviar mensaje por WhatsApp", whatsapp_url)
         else:
             st.warning("Cliente sin teléfono válido")
