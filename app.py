@@ -1692,56 +1692,79 @@ elif pagina == "Agenda":
             if not nombre.strip():
                 st.error("El nombre del cliente es obligatorio.")
             else:
-                try:
-                    client_auth = get_supabase_auth()
+                # ── VERIFICAR CONFLICTO DE HORARIO ──
+                conflicto = False
+                if hora:
+                    hora_str_nueva = hora.strftime("%H:%M")
+                    df_conflicto = df_a[
+                        (df_a["Fecha"].dt.date == fecha) &
+                        (df_a["hora"] == hora_str_nueva) &
+                        (df_a["realizado"] == False)
+                    ]
+                    if not df_conflicto.empty:
+                        conflicto = True
+                        nombres_conflicto = ", ".join(df_conflicto["Nombre"].dropna().tolist())
+                        st.warning(f"⚠️ Ya hay un servicio agendado a las {hora_str_nueva} el {fecha.strftime('%d/%m/%Y')} — {nombres_conflicto}. Puedes continuar si quieres agendar de todas formas.")
 
-                    id_cliente = None
-                    if id_cliente_default and str(id_cliente_default) not in ["", "nan", "None"]:
-                        id_cliente = int(id_cliente_default)
-                    else:
-                        max_id_resp = client_auth.table("clientes")\
-                            .select("cliente_id")\
-                            .eq("empresa_id", st.session_state["empresa_id"])\
-                            .not_.is_("cliente_id", "null")\
-                            .order("cliente_id", desc=True)\
-                            .limit(1)\
-                            .execute()
-                        if max_id_resp.data and max_id_resp.data[0]["cliente_id"]:
-                            id_cliente = int(max_id_resp.data[0]["cliente_id"]) + 1
+                if not conflicto or st.session_state.get("forzar_agenda", False):
+                    try:
+                        client_auth = get_supabase_auth()
+
+                        id_cliente = None
+                        if id_cliente_default and str(id_cliente_default) not in ["", "nan", "None"]:
+                            id_cliente = int(id_cliente_default)
                         else:
-                            id_cliente = 1
+                            max_id_resp = client_auth.table("clientes")\
+                                .select("cliente_id")\
+                                .eq("empresa_id", st.session_state["empresa_id"])\
+                                .not_.is_("cliente_id", "null")\
+                                .order("cliente_id", desc=True)\
+                                .limit(1)\
+                                .execute()
+                            if max_id_resp.data and max_id_resp.data[0]["cliente_id"]:
+                                id_cliente = int(max_id_resp.data[0]["cliente_id"]) + 1
+                            else:
+                                id_cliente = 1
 
-                    hora_str = hora.strftime("%H:%M") if hora else None
+                        hora_str = hora.strftime("%H:%M") if hora else None
 
-                    client_auth.table("clientes").insert({
-                        "empresa_id": st.session_state["empresa_id"],
-                        "cliente_id": id_cliente,
-                        "nombre": nombre,
-                        "tel": telefono,
-                        "direccion": direccion,
-                        "servicio": servicio,
-                        "fecha": fecha.isoformat(),
-                        "monto": float(monto),
-                        "origen": origen_input,
-                        "año": fecha.year,
-                        "realizado": False,
-                        "hora": hora_str
-                    }).execute()
+                        client_auth.table("clientes").insert({
+                            "empresa_id": st.session_state["empresa_id"],
+                            "cliente_id": id_cliente,
+                            "nombre": nombre,
+                            "tel": telefono,
+                            "direccion": direccion,
+                            "servicio": servicio,
+                            "fecha": fecha.isoformat(),
+                            "monto": float(monto),
+                            "origen": origen_input,
+                            "año": fecha.year,
+                            "realizado": False,
+                            "hora": hora_str
+                        }).execute()
 
-                    fecha_txt = fecha_relativa(fecha)
-                    hora_txt = f" a las {hora_str}" if hora_str else ""
-                    st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt}")
-                    st.cache_data.clear()
-                    for k in ["agenda_cliente_id", "agenda_cliente_nombre", "agenda_cliente_tel", "agenda_cliente_dir"]:
-                        st.session_state.pop(k, None)
-                    if "evento_seleccionado" in st.session_state:
-                        del st.session_state["evento_seleccionado"]
-                    import time as t
-                    t.sleep(1)
-                    st.rerun()
+                        fecha_txt = fecha_relativa(fecha)
+                        hora_txt = f" a las {hora_str}" if hora_str else ""
+                        st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt}")
+                        st.cache_data.clear()
+                        st.session_state.pop("forzar_agenda", None)
+                        for k in ["agenda_cliente_id", "agenda_cliente_nombre", "agenda_cliente_tel", "agenda_cliente_dir"]:
+                            st.session_state.pop(k, None)
+                        if "evento_seleccionado" in st.session_state:
+                            del st.session_state["evento_seleccionado"]
+                        import time as t
+                        t.sleep(1)
+                        st.rerun()
 
-                except Exception as e:
-                    st.error(f"Error al agendar: {e}")
+                    except Exception as e:
+                        st.error(f"Error al agendar: {e}")
+                else:
+                    st.session_state["forzar_agenda"] = True
+
+    # Botón fuera del form para forzar agendar con conflicto
+    if st.session_state.get("forzar_agenda", False):
+        if st.button("⚠️ Agendar de todas formas", use_container_width=True):
+            st.rerun()
 
     st.markdown("---")
 
