@@ -1914,7 +1914,7 @@ elif pagina == "Agenda":
                     url_confirmacion = f"https://wa.me/{tel_ev_completo}?text={urllib.parse.quote(mensaje_confirmacion)}"
                     st.markdown(f"[💬 Enviar recordatorio]({url_confirmacion})")
                 else:
-                    msg_sat = f"Hola {limpiar_valor(row.get('Nombre'))}, gracias por confiar en {empresa} 😊 ¿Cómo quedó tu servicio? Tu opinión nos ayuda a mejorar."
+                    msg_sat = f"Hola {limpiar_valor(row.get('Nombre'))}, gracias por confiar en {empresa} ¿Cómo quedó tu servicio? Tu opinión nos ayuda a mejorar."
                     url_sat = f"https://wa.me/{tel_ev_completo}?text={urllib.parse.quote(msg_sat)}"
                     st.link_button("💬 Enviar WhatsApp de satisfacción", url_sat)
 
