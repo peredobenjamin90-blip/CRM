@@ -951,8 +951,6 @@ elif pagina == "Ventas":
         # CLIENTES
 elif pagina == "Clientes":
     import urllib.parse
-    import base64
-    import streamlit.components.v1 as components
 
     st.title("Origen de Clientes")
 
@@ -1090,7 +1088,7 @@ elif pagina == "Clientes":
         mostrar.columns = ["Fecha", "Nombre", "Servicio", "Monto", "Origen", "Comentarios"]
         st.dataframe(mostrar, use_container_width=True, hide_index=True)
 
-    # 🔴 CLIENTES PERDIDOS
+    # 🔴 OPORTUNIDADES DE RECUPERACIÓN
     st.markdown("## 🔴 Oportunidades de recuperación")
 
     df_lost = df_hist.copy()
@@ -1129,91 +1127,7 @@ elif pagina == "Clientes":
     perdidos_mostrar["Total_Gastado"] = perdidos_mostrar["Total_Gastado"].apply(lambda x: f"${x:,.0f}")
     st.dataframe(perdidos_mostrar, use_container_width=True, hide_index=True)
 
-    # 🚀 CONTACTO MASIVO
-    st.markdown("## 🚀 Contacto masivo")
-
-    if not perdidos.empty:
-        PLANTILLAS_MASIVAS = {
-            "Recordatorio": "Hola {nombre}, te contactamos de {empresa}. Hace tiempo no realizas un servicio con nosotros. ¿Te gustaría agendar?",
-            "Promoción": "Hola {nombre}, en {empresa} tenemos una promoción especial. ¿Te interesa?",
-            "Seguimiento": "Hola {nombre}, te damos seguimiento desde {empresa}. ¿Cómo fue tu servicio?",
-            "Reactivación": "Hola {nombre}, te extrañamos en {empresa} 😄 ¿Agendamos esta semana?"
-        }
-
-        empresa = st.session_state.get("empresa", "")
-        plantilla_sel_masiva = st.selectbox(
-            "Plantilla para todos",
-            list(PLANTILLAS_MASIVAS.keys()),
-            key="plantilla_masiva_clientes"
-        )
-        mensaje_base_masivo = PLANTILLAS_MASIVAS[plantilla_sel_masiva]
-
-        urls_perdidos = []
-        for _, row in perdidos.iterrows():
-            tel = str(row["Tel"]).replace("-", "").replace(" ", "")
-            if tel and tel != "nan":
-                tel_completo = "52" + tel
-                mensaje = mensaje_base_masivo.format(nombre=row["Nombre"], empresa=empresa)
-                urls_perdidos.append((
-                    row["Nombre"],
-                    f"https://wa.me/{tel_completo}?text={urllib.parse.quote(mensaje)}"
-                ))
-
-        if urls_perdidos:
-            cols = st.columns(3)
-            for i, (nombre_btn, url_btn) in enumerate(urls_perdidos):
-                with cols[i % 3]:
-                    st.link_button(f"💬 {nombre_btn}", url_btn)
-
-            html_links_cl = ""
-            for nombre_link, url_link in urls_perdidos:
-                html_links_cl += f'<a href="{url_link}" target="_blank" style="display:block;background-color:#25D366;color:white;text-decoration:none;padding:12px 16px;border-radius:8px;margin-bottom:8px;font-size:15px;font-family:sans-serif;">💬 {nombre_link}</a>'
-
-            pagina_html_cl = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>Contacto masivo</title>
-            <style>body{{font-family:sans-serif;padding:24px;max-width:500px;margin:auto;background:#f9f9f9;}}h2{{color:#128C7E;}}p{{color:#555;margin-bottom:20px;}}</style></head>
-            <body><h2>📋 {len(urls_perdidos)} clientes a contactar</h2><p>Haz click en cada nombre para abrir WhatsApp Web.</p>{html_links_cl}</body></html>"""
-
-            b64_cl = base64.b64encode(pagina_html_cl.encode("utf-8")).decode("utf-8")
-            components.html(f'<a href="data:text/html;base64,{b64_cl}" target="_blank" style="display:block;background-color:#128C7E;color:white;text-decoration:none;text-align:center;border-radius:8px;padding:14px 24px;font-size:16px;font-family:sans-serif;margin-top:8px;">🚀 Abrir panel de contacto masivo ({len(urls_perdidos)} contactos)</a>', height=65)
-
-    # 💬 CONTACTO INDIVIDUAL
-    st.markdown("### 💬 Contacto rápido")
-
-    if not perdidos.empty:
-        PLANTILLAS_IND = {
-            "Recordatorio": "Hola {nombre}, te contactamos de {empresa}. Hace tiempo no realizas un servicio con nosotros. ¿Te gustaría agendar?",
-            "Promoción": "Hola {nombre}, en {empresa} tenemos una promoción especial. ¿Te interesa?",
-            "Seguimiento": "Hola {nombre}, te damos seguimiento desde {empresa}. ¿Cómo fue tu servicio?",
-            "Reactivación": "Hola {nombre}, te extrañamos en {empresa} 😄 ¿Agendamos esta semana?"
-        }
-
-        cliente_sel_contacto = st.selectbox(
-            "Selecciona cliente",
-            perdidos["Nombre"],
-            key="select_contacto"
-        )
-
-        cliente_data = perdidos[perdidos["Nombre"] == cliente_sel_contacto].iloc[0]
-        tel = str(cliente_data["Tel"]).replace("-", "").replace(" ", "")
-        if tel and tel != "nan":
-            tel = "52" + tel
-
-        plantilla_ind_cl = st.selectbox(
-            "Plantilla",
-            list(PLANTILLAS_IND.keys()),
-            key="plantilla_ind_clientes"
-        )
-        mensaje = PLANTILLAS_IND[plantilla_ind_cl].format(
-            nombre=cliente_sel_contacto,
-            empresa=st.session_state.get("empresa", "tu negocio")
-        )
-        mensaje_edit = st.text_area("Mensaje", value=mensaje, key="msg_edit_clientes")
-
-        if tel and tel != "52nan":
-            url = f"https://wa.me/{tel}?text={urllib.parse.quote(mensaje_edit)}"
-            st.link_button("💬 Abrir WhatsApp", url)
-        else:
-            st.warning("Este cliente no tiene teléfono válido")
+    st.info("💡 Para contactar clientes ve a la página de Follow Up.")
 elif pagina == "Servicios":
     st.title("Servicios más vendidos")
     import collections
