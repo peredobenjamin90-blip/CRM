@@ -1588,6 +1588,16 @@ elif pagina == "Agenda":
         else:
             return fecha.strftime("%d/%m/%Y")
 
+    def rango_hora(hora_str):
+        if not hora_str:
+            return ""
+        try:
+            h = datetime.strptime(str(hora_str).strip(), "%H:%M")
+            h2 = h + timedelta(minutes=30)
+            return f"{h.strftime('%H:%M')} - {h2.strftime('%H:%M')}"
+        except:
+            return str(hora_str)
+
     df_a = df.copy()
     df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce")
     df_a["Monto"] = pd.to_numeric(df_a["Monto"], errors="coerce")
@@ -1615,6 +1625,7 @@ elif pagina == "Agenda":
                 hora_str = limpiar_valor(row.get("hora"))
                 fecha_row = row["Fecha"].date() if pd.notnull(row["Fecha"]) else None
                 fecha_txt = fecha_relativa(fecha_row) if fecha_row else ""
+                rango = rango_hora(hora_str)
 
                 st.markdown(f"""
                 **👤 Cliente:** {limpiar_valor(row.get('Nombre'))}  
@@ -1622,14 +1633,14 @@ elif pagina == "Agenda":
                 **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
                 **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
                 **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
-                **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' a las {hora_str}' if hora_str else ''}  
+                **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' entre las {rango}' if rango else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **Estado:** {estado}
                 """)
                 tel = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
                 if tel and tel != "nan":
                     tel_completo = "52" + tel
-                    hora_msg = f" a las {hora_str}" if hora_str else ""
+                    hora_msg = f" entre las {rango}" if rango else ""
                     fecha_completa = f"{fecha_row.strftime('%d/%m/%Y')} ({fecha_txt})" if fecha_row else ""
                     mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para el {fecha_completa}{hora_msg}."
                     url = f"https://wa.me/{tel_completo}?text={urllib.parse.quote(mensaje_confirmacion)}"
@@ -1728,7 +1739,6 @@ elif pagina == "Agenda":
             if not nombre.strip():
                 st.error("El nombre del cliente es obligatorio.")
             else:
-                # ── VERIFICAR CONFLICTO DE HORARIO ──
                 conflicto = False
                 if hora:
                     hora_str_nueva = hora.strftime("%H:%M")
@@ -1740,7 +1750,7 @@ elif pagina == "Agenda":
                     if not df_conflicto.empty:
                         conflicto = True
                         nombres_conflicto = ", ".join(df_conflicto["Nombre"].dropna().tolist())
-                        st.warning(f"⚠️ Ya hay un servicio agendado a las {hora_str_nueva} el {fecha.strftime('%d/%m/%Y')} — {nombres_conflicto}. Puedes continuar si quieres agendar de todas formas.")
+                        st.warning(f"⚠️ Ya hay un servicio a las {hora_str_nueva} el {fecha.strftime('%d/%m/%Y')} — {nombres_conflicto}.")
 
                 if not conflicto or st.session_state.get("forzar_agenda", False):
                     try:
@@ -1763,6 +1773,7 @@ elif pagina == "Agenda":
                                 id_cliente = 1
 
                         hora_str = hora.strftime("%H:%M") if hora else None
+                        rango_nuevo = rango_hora(hora_str)
 
                         client_auth.table("clientes").insert({
                             "empresa_id": st.session_state["empresa_id"],
@@ -1780,7 +1791,7 @@ elif pagina == "Agenda":
                         }).execute()
 
                         fecha_txt = fecha_relativa(fecha)
-                        hora_txt = f" a las {hora_str}" if hora_str else ""
+                        hora_txt = f" entre las {rango_nuevo}" if rango_nuevo else ""
                         st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt}")
                         st.cache_data.clear()
                         st.session_state.pop("forzar_agenda", None)
@@ -1797,18 +1808,21 @@ elif pagina == "Agenda":
                 else:
                     st.session_state["forzar_agenda"] = True
 
-    # Botón fuera del form para forzar agendar con conflicto
     if st.session_state.get("forzar_agenda", False):
         if st.button("⚠️ Agendar de todas formas", use_container_width=True):
             st.rerun()
 
     st.markdown("---")
+    st.info("📅 Calendario temporalmente deshabilitado para diagnóstico.")
 
+    # ── CALENDARIO ──
     from streamlit_calendar import calendar
 
-    st.markdown("### 📅 Calendario de servicios")
-
-    df_cal = df_a[df_a["Fecha"].dt.year >= 2021].copy()
+    hoy = datetime.now()
+    df_cal = df_a[
+        (df_a["Fecha"].dt.year == hoy.year) &
+        (df_a["Fecha"].dt.month == hoy.month)
+    ].copy()
     df_cal = df_cal.dropna(subset=["Fecha"])
 
     eventos = []
@@ -1816,9 +1830,10 @@ elif pagina == "Agenda":
         realizado = row.get("realizado", False)
         color = "#2B5BAA" if realizado else "#F59E0B"
         hora_ev = limpiar_valor(row.get("hora"))
+        rango_ev = rango_hora(hora_ev)
         titulo = f"{'✅' if realizado else '⏳'} {limpiar_valor(row.get('Nombre'))} — {limpiar_valor(row.get('Servicio'))}"
-        if hora_ev:
-            titulo += f" ({hora_ev})"
+        if rango_ev:
+            titulo += f" ({rango_ev})"
         eventos.append({
             "title": titulo,
             "start": row["Fecha"].strftime("%Y-%m-%d"),
@@ -1863,6 +1878,7 @@ elif pagina == "Agenda":
             row = df_evento.iloc[0]
             realizado = row.get("realizado", False)
             hora_row = limpiar_valor(row.get("hora"))
+            rango_row = rango_hora(hora_row)
             fecha_row = row["Fecha"].date() if pd.notnull(row["Fecha"]) else None
             fecha_txt = fecha_relativa(fecha_row) if fecha_row else ""
 
@@ -1877,7 +1893,7 @@ elif pagina == "Agenda":
                 **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
                 **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
                 **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
-                **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' a las {hora_row}' if hora_row else ''}  
+                **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' entre las {rango_row}' if rango_row else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **🔍 Origen:** {limpiar_valor(row.get('Origen'))}  
                 **💬 Comentarios:** {limpiar_valor(row.get('Comentarios con llamada posterior a venta'))}  
@@ -1890,12 +1906,12 @@ elif pagina == "Agenda":
 
             tel_ev = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
             if tel_ev and tel_ev not in ["nan", ""]:
-                tel_ev = "52" + tel_ev
-                hora_msg = f" a las {hora_row}" if hora_row else ""
+                tel_ev_completo = "52" + tel_ev
+                hora_msg = f" entre las {rango_row}" if rango_row else ""
                 fecha_completa_ev = f"{fecha_row.strftime('%d/%m/%Y')} ({fecha_txt})" if fecha_row else ""
                 mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para el {fecha_completa_ev}{hora_msg}."
-                url = f"https://wa.me/{tel_ev}?text={urllib.parse.quote(mensaje_confirmacion)}"
-                st.markdown(f"[💬 Enviar recordatorio]({url})")
+                url_confirmacion = f"https://wa.me/{tel_ev_completo}?text={urllib.parse.quote(mensaje_confirmacion)}"
+                st.markdown(f"[💬 Enviar recordatorio]({url_confirmacion})")
 
             if not realizado:
                 if st.button("✅ Marcar como realizado y guardar en Sheets", use_container_width=True, type="primary"):
@@ -1976,6 +1992,14 @@ elif pagina == "Agenda":
                                 })
 
                             st.success("✅ Servicio marcado como realizado y guardado en Sheets.")
+
+                            # Guardar para WhatsApp de satisfacción
+                            st.session_state["whatsapp_satisfaccion"] = {
+                                "nombre": limpiar_valor(row.get("Nombre")),
+                                "tel": tel_ev,
+                                "empresa": empresa
+                            }
+
                         else:
                             st.success("✅ Marcado como realizado. No hay sheet configurado para este año.")
 
@@ -1990,6 +2014,16 @@ elif pagina == "Agenda":
                         st.error(f"Error: {e}")
             else:
                 st.success("✅ Este servicio ya fue realizado y guardado en Sheets.")
+
+            # ── WHATSAPP DE SATISFACCIÓN ──
+            if st.session_state.get("whatsapp_satisfaccion"):
+                datos_ws = st.session_state["whatsapp_satisfaccion"]
+                tel_ws = str(datos_ws["tel"]).replace("-", "").replace(" ", "")
+                if tel_ws and tel_ws not in ["nan", ""]:
+                    tel_ws = "52" + tel_ws
+                    msg_ws = f"Hola {datos_ws['nombre']}, gracias por confiar en {datos_ws['empresa']} 😊 ¿Cómo quedó tu servicio? Tu opinión nos ayuda a mejorar."
+                    url_ws = f"https://wa.me/{tel_ws}?text={urllib.parse.quote(msg_ws)}"
+                    st.link_button("💬 Enviar WhatsApp de satisfacción", url_ws)
 
             st.markdown("#### ✏️ Editar datos del servicio")
             with st.form("editar_servicio_form"):
