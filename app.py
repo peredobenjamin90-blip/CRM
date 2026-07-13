@@ -1907,11 +1907,16 @@ elif pagina == "Agenda":
             tel_ev = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
             if tel_ev and tel_ev not in ["nan", ""]:
                 tel_ev_completo = "52" + tel_ev
-                hora_msg = f" entre las {rango_row}" if rango_row else ""
-                fecha_completa_ev = f"{fecha_row.strftime('%d/%m/%Y')} ({fecha_txt})" if fecha_row else ""
-                mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para el {fecha_completa_ev}{hora_msg}."
-                url_confirmacion = f"https://wa.me/{tel_ev_completo}?text={urllib.parse.quote(mensaje_confirmacion)}"
-                st.markdown(f"[💬 Enviar recordatorio]({url_confirmacion})")
+                if not realizado:
+                    hora_msg = f" entre las {rango_row}" if rango_row else ""
+                    fecha_completa_ev = f"{fecha_row.strftime('%d/%m/%Y')} ({fecha_txt})" if fecha_row else ""
+                    mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para el {fecha_completa_ev}{hora_msg}."
+                    url_confirmacion = f"https://wa.me/{tel_ev_completo}?text={urllib.parse.quote(mensaje_confirmacion)}"
+                    st.markdown(f"[💬 Enviar recordatorio]({url_confirmacion})")
+                else:
+                    msg_sat = f"Hola {limpiar_valor(row.get('Nombre'))}, gracias por confiar en {empresa} 😊 ¿Cómo quedó tu servicio? Tu opinión nos ayuda a mejorar."
+                    url_sat = f"https://wa.me/{tel_ev_completo}?text={urllib.parse.quote(msg_sat)}"
+                    st.link_button("💬 Enviar WhatsApp de satisfacción", url_sat)
 
             if not realizado:
                 if st.button("✅ Marcar como realizado y guardar en Sheets", use_container_width=True, type="primary"):
