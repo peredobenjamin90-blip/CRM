@@ -511,6 +511,16 @@ if "cache_limpiado" not in st.session_state:
     st.cache_data.clear()
     st.session_state["cache_limpiado"] = True
 
+# ── REFRESCAR TOKEN ──
+try:
+    session = supabase.auth.get_session()
+    if session and session.session:
+        st.session_state["access_token"] = session.session.access_token
+except:
+    pass
+
+app_config = USUARIOS.get(st.session_state["usuario"], {}).get("app", {})
+
 app_config = USUARIOS.get(st.session_state["usuario"], {}).get("app", {})
 NOMBRE_APP = app_config.get("nombre", "CRM Dashboard")
 
