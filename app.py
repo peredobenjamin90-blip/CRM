@@ -1001,6 +1001,8 @@ elif pagina == "Clientes":
             historial["Nombre"].str.contains(cliente_buscar, case=False, na=False) |
             historial["ID Cliente"].astype(str).str.contains(cliente_buscar, na=False)
         ]
+        if cliente_buscar.isdigit():
+            historial = historial.sort_values(by="ID Cliente", ascending=True)
 
     historial_mostrar = historial.copy()
     historial_mostrar["Total_Gastado"] = historial_mostrar["Total_Gastado"].apply(lambda x: f"${x:,.0f}")
@@ -1046,12 +1048,10 @@ elif pagina == "Clientes":
         col3.metric("Última visita", ultima.strftime("%d/%m/%Y") if pd.notnull(ultima) else "-")
         col4.metric("Ticket promedio", f"${promedio:,.0f}")
 
-        # Datos actuales del cliente
         ultima_fila = df_cliente.iloc[0]
         tel_actual = str(ultima_fila.get("Tel", ""))
         dir_actual = str(ultima_fila.get("Dirección", ""))
 
-        # ── EDITAR CLIENTE ──
         st.markdown("### ✏️ Editar datos del cliente")
         with st.form("editar_cliente_form"):
             nuevo_nombre = st.text_input("Nombre", value=cliente_sel)
@@ -1066,8 +1066,6 @@ elif pagina == "Clientes":
                         st.secrets["SUPABASE_KEY"]
                     )
                     client_auth.postgrest.auth(st.session_state.get("access_token", ""))
-
-                    # Actualizar todos los registros de este cliente
                     client_auth.table("clientes").update({
                         "nombre": nuevo_nombre,
                         "tel": nuevo_tel,
@@ -1216,82 +1214,100 @@ elif pagina == "Clientes":
             st.link_button("💬 Abrir WhatsApp", url)
         else:
             st.warning("Este cliente no tiene teléfono válido")
+elif pagina == "Servicios":
+    st.title("Servicios más vendidos")
+    import collections
 
+    año_serv = st.selectbox("Año:", años_sin_2026)
+    df_s = df[df["Año"] == año_serv].copy()
+    df_s = df_s[df_s["Servicio"].notna()]
+    df_s = df_s[df_s["Servicio"].astype(str).str.strip() != ""]
+
+    categorias_config = USUARIOS[st.session_state["usuario"]].get("categorias", {})
+    filas_expandidas = []
+    for _, row in df_s.iterrows():
+        s = str(row["Servicio"]).lower()
+        encontradas = set()
+        for categoria, keywords in categorias_config.items():
+            for kw in keywords:
+                if kw in s:
+                    encontradas.add(categoria)
+        if not encontradas:
+            encontradas.add("Otro")
+        for cat in encontradas:
+            filas_expandidas.append(cat)
+
+    conteo = collections.Counter(filas_expandidas)
+    cats = pd.DataFrame(conteo.items(), columns=["Categoria", "Cantidad"])
+    cats = cats.sort_values("Cantidad", ascending=False)
+
+    fig = px.pie(cats, names="Categoria", values="Cantidad", title="Servicios más vendidos", hole=0.3)
+    fig.update_traces(textposition="inside", textinfo="percent+label")
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font_color="#F0F2F6"
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.dataframe(cats, use_container_width=True, hide_index=True)    
     # ── FOLLOW UP ──
 elif pagina == "Follow Up":
     st.title("Clientes para Follow Up")
     import urllib.parse
-    import json
     import base64
     import streamlit.components.v1 as components
-    from datetime import datetime
 
     if "followup_historial" not in st.session_state:
         st.session_state["followup_historial"] = []
     if "followup_resultados" not in st.session_state:
         st.session_state["followup_resultados"] = []
 
-    ultimo = df.groupby("Nombre").agg(Fecha=("Fecha","max")).reset_index()
-    ultimo.columns = ["Nombre", "Ultimo servicio"]
+    df_fu = df.copy()
+    df_fu["Fecha"] = pd.to_datetime(df_fu["Fecha"], errors="coerce")
+    df_fu["Monto"] = pd.to_numeric(df_fu["Monto"], errors="coerce")
+    df_fu["ID Cliente"] = pd.to_numeric(df_fu["ID Cliente"], errors="coerce")
 
-    tels = df[["Nombre","Tel"]].drop_duplicates(subset="Nombre")
-    comentarios = df.sort_values("Fecha").drop_duplicates(subset="Nombre", keep="last")[
-        ["Nombre","Comentarios con llamada posterior a venta"]
-    ]
+    # Agrupar por ID Cliente para unir nombres distintos del mismo cliente
+    ultimo = df_fu.groupby("ID Cliente").agg(
+        Nombre=("Nombre", "last"),
+        Fecha=("Fecha", "max"),
+        Tel=("Tel", "last"),
+        Comentario=("Comentarios con llamada posterior a venta", "last")
+    ).reset_index()
+    ultimo.columns = ["ID Cliente", "Nombre", "Ultimo servicio", "Tel", "Comentario"]
 
-    ultimo = ultimo.merge(tels, on="Nombre", how="left")
-    ultimo = ultimo.merge(comentarios, on="Nombre", how="left")
-    ultimo.columns = ["Nombre", "Ultimo servicio", "Tel", "Comentario"]
-
-    # ── Si viene del banner, usar ese umbral; si no, el slider ──
     meses_default = st.session_state.pop("followup_meses_override", None)
-
     col1, col2 = st.columns(2)
     with col1:
-        meses = st.slider(
-            "Sin servicio hace más de X meses:",
-            1, 24,
-            meses_default if meses_default is not None else 6
-        )
+        meses = st.slider("Sin servicio hace más de X meses:", 1, 24, meses_default if meses_default is not None else 6)
     with col2:
-        mes_filtro = st.selectbox(
-            "Mes del último servicio:",
-            ["Todos","Enero","Febrero","Marzo","Abril","Mayo","Junio",
-             "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-        )
+        mes_filtro = st.selectbox("Mes del último servicio:", ["Todos","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"])
+
+    # Búsqueda por nombre o ID
+    buscar_followup = st.text_input("🔍 Buscar por nombre o ID", key="buscar_followup")
 
     fecha_limite = datetime.now() - timedelta(days=meses * 30)
     sin_servicio = ultimo[ultimo["Ultimo servicio"] < fecha_limite].copy()
 
-    meses_dict = {
-        "Enero":1,"Febrero":2,"Marzo":3,"Abril":4,"Mayo":5,"Junio":6,
-        "Julio":7,"Agosto":8,"Septiembre":9,"Octubre":10,"Noviembre":11,"Diciembre":12
-    }
-
+    meses_dict = {"Enero":1,"Febrero":2,"Marzo":3,"Abril":4,"Mayo":5,"Junio":6,
+                  "Julio":7,"Agosto":8,"Septiembre":9,"Octubre":10,"Noviembre":11,"Diciembre":12}
     if mes_filtro != "Todos":
+        sin_servicio = sin_servicio[sin_servicio["Ultimo servicio"].dt.month == meses_dict[mes_filtro]]
+
+    if buscar_followup:
         sin_servicio = sin_servicio[
-            sin_servicio["Ultimo servicio"].dt.month == meses_dict[mes_filtro]
+            sin_servicio["Nombre"].str.contains(buscar_followup, case=False, na=False) |
+            sin_servicio["ID Cliente"].astype(str).str.contains(buscar_followup, na=False)
         ]
+        if buscar_followup.isdigit():
+            sin_servicio = sin_servicio.sort_values(by="ID Cliente", ascending=True)
 
     sin_servicio = sin_servicio.sort_values("Ultimo servicio")
 
-    hoy = datetime.now()
-    def get_columna_followup(ultima_fecha):
-        if pd.isna(ultima_fecha):
-            return 13
-        meses_sin = (hoy - ultima_fecha).days / 30
-        if meses_sin < 3:
-            return 11
-        elif meses_sin < 8:
-            return 12
-        else:
-            return 13
-
     st.metric("Clientes a contactar", len(sin_servicio))
-    st.dataframe(sin_servicio, use_container_width=True)
+    st.dataframe(sin_servicio[["ID Cliente", "Nombre", "Tel", "Ultimo servicio", "Comentario"]], use_container_width=True, hide_index=True)
 
     st.markdown("### 🚀 Enviar mensaje a todos")
-
     PLANTILLAS_MENSAJES = {
         "Seguimiento": "Hola {nombre}, te contactamos de {empresa}. Solo para dar seguimiento a tu último servicio. ¿Cómo fue tu experiencia?",
         "Recordatorio": "Hola {nombre}, en {empresa} te recordamos que ya pasó tiempo desde tu último servicio. ¿Te gustaría agendar?",
@@ -1299,21 +1315,9 @@ elif pagina == "Follow Up":
         "Reactivación": "Hola {nombre}, te extrañamos en {empresa} 😄 Tenemos disponibilidad esta semana. ¿Agendamos?"
     }
 
-    plantilla_masiva = st.selectbox(
-        "Plantilla:",
-        list(PLANTILLAS_MENSAJES.keys()),
-        key="plantilla_masiva_followup"
-    )
-
-    mensaje_masivo_preview = PLANTILLAS_MENSAJES[plantilla_masiva].format(
-        nombre="[Nombre]",
-        empresa=st.session_state.get("empresa", "nuestro negocio")
-    )
-    mensaje_masivo_edit = st.text_area(
-        "Edita el mensaje ({nombre} y {empresa} se reemplazan automáticamente):",
-        value=mensaje_masivo_preview,
-        key="mensaje_masivo_edit"
-    )
+    plantilla_masiva = st.selectbox("Plantilla:", list(PLANTILLAS_MENSAJES.keys()), key="plantilla_masiva_followup")
+    mensaje_masivo_preview = PLANTILLAS_MENSAJES[plantilla_masiva].format(nombre="[Nombre]", empresa=st.session_state.get("empresa", "nuestro negocio"))
+    mensaje_masivo_edit = st.text_area("Edita el mensaje ({nombre} y {empresa} se reemplazan automáticamente):", value=mensaje_masivo_preview, key="mensaje_masivo_edit")
 
     TAMANO_BLOQUE = 20
 
@@ -1325,31 +1329,24 @@ elif pagina == "Follow Up":
         ].reset_index(drop=True)
 
         total_bloques = (len(clientes_validos) + TAMANO_BLOQUE - 1) // TAMANO_BLOQUE
-
         st.caption(f"📦 {len(clientes_validos)} clientes divididos en {total_bloques} bloque(s) de {TAMANO_BLOQUE}")
 
         bloque_sel = st.selectbox(
             "Selecciona bloque a enviar:",
-            [f"Bloque {i+1} ({i*TAMANO_BLOQUE+1}-{min((i+1)*TAMANO_BLOQUE, len(clientes_validos))})"
-             for i in range(total_bloques)],
+            [f"Bloque {i+1} ({i*TAMANO_BLOQUE+1}-{min((i+1)*TAMANO_BLOQUE, len(clientes_validos))})" for i in range(total_bloques)],
             key="bloque_sel"
         )
 
         idx_bloque = int(bloque_sel.split(" ")[1]) - 1
         inicio = idx_bloque * TAMANO_BLOQUE
-        fin = inicio + TAMANO_BLOQUE
-        clientes_bloque = clientes_validos.iloc[inicio:fin]
+        clientes_bloque = clientes_validos.iloc[inicio:inicio + TAMANO_BLOQUE]
 
         urls_bloque = []
         for _, row in clientes_bloque.iterrows():
             tel = str(row["Tel"]).replace("-", "").replace(" ", "").strip()
             tel_completo = "52" + tel
-            mensaje_final = mensaje_masivo_edit.format(
-                nombre=row["Nombre"],
-                empresa=st.session_state.get("empresa", "nuestro negocio")
-            )
-            mensaje_encoded = urllib.parse.quote(mensaje_final)
-            urls_bloque.append((row["Nombre"], f"https://wa.me/{tel_completo}?text={mensaje_encoded}"))
+            mensaje_final = mensaje_masivo_edit.format(nombre=row["Nombre"], empresa=st.session_state.get("empresa", "nuestro negocio"))
+            urls_bloque.append((row["Nombre"], f"https://wa.me/{tel_completo}?text={urllib.parse.quote(mensaje_final)}"))
 
         st.markdown(f"**Clientes en este bloque ({len(clientes_bloque)}):**")
         cols = st.columns(3)
@@ -1357,107 +1354,49 @@ elif pagina == "Follow Up":
             with cols[i % 3]:
                 st.link_button(f"💬 {nombre_btn}", url_btn)
 
-        # ── PANEL DE ENVÍO MASIVO ──
         html_links = ""
         for nombre_link, url_link in urls_bloque:
-            html_links += f"""
-            <a href="{url_link}" target="_blank" style="
-                display:block; background-color:#25D366; color:white;
-                text-decoration:none; padding:12px 16px; border-radius:8px;
-                margin-bottom:8px; font-size:15px; font-family:sans-serif;
-            ">💬 {nombre_link}</a>
-            """
+            html_links += f'<a href="{url_link}" target="_blank" style="display:block;background-color:#25D366;color:white;text-decoration:none;padding:12px 16px;border-radius:8px;margin-bottom:8px;font-size:15px;font-family:sans-serif;">💬 {nombre_link}</a>'
 
-        pagina_html = f"""
-        <!DOCTYPE html><html><head><meta charset="utf-8">
-        <title>WhatsApp Follow Up — Bloque {idx_bloque + 1}</title>
-        <style>
-            body{{font-family:sans-serif;padding:24px;max-width:500px;margin:auto;background:#f9f9f9;}}
-            h2{{color:#128C7E;}}p{{color:#555;margin-bottom:20px;}}
-        </style></head>
-        <body>
-            <h2>📋 Bloque {idx_bloque + 1} — {len(urls_bloque)} contactos</h2>
-            <p>Haz click en cada nombre para abrir WhatsApp Web en una pestaña nueva.</p>
-            {html_links}
-        </body></html>
-        """
+        pagina_html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>WhatsApp Follow Up — Bloque {idx_bloque+1}</title>
+        <style>body{{font-family:sans-serif;padding:24px;max-width:500px;margin:auto;background:#f9f9f9;}}h2{{color:#128C7E;}}p{{color:#555;margin-bottom:20px;}}</style></head>
+        <body><h2>📋 Bloque {idx_bloque+1} — {len(urls_bloque)} contactos</h2><p>Haz click en cada nombre para abrir WhatsApp Web en una pestaña nueva.</p>{html_links}</body></html>"""
 
         b64 = base64.b64encode(pagina_html.encode("utf-8")).decode("utf-8")
-        components.html(f"""
-        <a href="data:text/html;base64,{b64}" target="_blank" style="
-            display:block; background-color:#128C7E; color:white;
-            text-decoration:none; text-align:center; border-radius:8px;
-            padding:14px 24px; font-size:16px; font-family:sans-serif; margin-top:8px;
-        ">🚀 Abrir panel de envío — Bloque {idx_bloque + 1} ({len(urls_bloque)} contactos)</a>
-        """, height=65)
+        components.html(f'<a href="data:text/html;base64,{b64}" target="_blank" style="display:block;background-color:#128C7E;color:white;text-decoration:none;text-align:center;border-radius:8px;padding:14px 24px;font-size:16px;font-family:sans-serif;margin-top:8px;">🚀 Abrir panel de envío — Bloque {idx_bloque+1} ({len(urls_bloque)} contactos)</a>', height=65)
 
         st.markdown("---")
-
-        # ── REGISTRO DE RESULTADO ──
         st.markdown("### ✅ Marcar resultado del bloque")
         st.caption("Registra qué pasó con cada cliente. Esto alimenta el dashboard de conversión en Resumen.")
 
         OPCIONES_RESULTADO = ["Agendó", "No contestó", "Número inválido", "No le interesa", "Pendiente"]
 
-        with st.expander(f"Registrar resultados — Bloque {idx_bloque + 1}"):
+        with st.expander(f"Registrar resultados — Bloque {idx_bloque+1}"):
             resultados_bloque = {}
             for _, row in clientes_bloque.iterrows():
                 resultados_bloque[row["Nombre"]] = st.selectbox(
-                    row["Nombre"],
-                    OPCIONES_RESULTADO,
-                    index=4,
+                    row["Nombre"], OPCIONES_RESULTADO, index=4,
                     key=f"resultado_{row['Nombre']}_{idx_bloque}"
                 )
 
         if st.button(f"✅ Guardar resultados y marcar bloque {idx_bloque+1} como enviado", use_container_width=True):
             timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
-            errores_update = []
-
             with st.spinner("Guardando..."):
                 try:
                     for nombre_r, resultado_r in resultados_bloque.items():
                         st.session_state["followup_resultados"].append({
-                            "nombre": nombre_r,
-                            "resultado": resultado_r,
-                            "timestamp": timestamp,
-                            "bloque": idx_bloque + 1
+                            "nombre": nombre_r, "resultado": resultado_r,
+                            "timestamp": timestamp, "bloque": idx_bloque + 1
                         })
-
-                    client = get_gspread_client()
-                    sheet_ids = st.session_state.get("SHEET_IDS", {})
-
-                    for _, row in clientes_bloque.iterrows():
-                        nombre_cliente = row["Nombre"]
-                        col_followup = get_columna_followup(row["Ultimo servicio"])
-
-                        for año, sheet_id in sheet_ids.items():
-                            if not sheet_id:
-                                continue
-                            try:
-                                sh = client.open_by_key(sheet_id)
-                                worksheet = sh.get_worksheet(0)
-                                celdas = worksheet.findall(nombre_cliente)
-                                for celda in celdas:
-                                    resultado_celda = resultados_bloque.get(nombre_cliente, "Ok")
-                                    worksheet.update_cell(celda.row, col_followup, resultado_celda)
-                            except Exception as e:
-                                errores_update.append(f"{nombre_cliente} ({año}): {e}")
-
                     st.session_state["followup_historial"].append({
-                        "bloque": idx_bloque + 1,
-                        "timestamp": timestamp,
-                        "mes_filtro": mes_filtro,
-                        "clientes": len(clientes_bloque),
+                        "bloque": idx_bloque + 1, "timestamp": timestamp,
+                        "mes_filtro": mes_filtro, "clientes": len(clientes_bloque),
                         "plantilla": plantilla_masiva,
                         "nombres": [n for n, _ in urls_bloque],
                         "resultados": resultados_bloque
                     })
-
                     st.success(f"✅ Bloque {idx_bloque+1} guardado — {timestamp}")
-                    if errores_update:
-                        st.warning(f"Algunos no se pudieron actualizar: {errores_update[:3]}")
                     st.cache_data.clear()
-
                 except Exception as e:
                     st.error(f"Error guardando: {e}")
 
@@ -1473,36 +1412,24 @@ elif pagina == "Follow Up":
                     st.write(", ".join(h['nombres']))
 
     st.markdown("---")
-
     st.markdown("### 💬 Enviar mensaje individual")
-
     if not sin_servicio.empty:
-        cliente_sel = st.selectbox(
-            "Selecciona cliente:",
-            sin_servicio.apply(lambda x: f"{x['Nombre']} - {x['Tel']}", axis=1)
+        opciones_followup = sin_servicio.apply(
+            lambda x: f"[{int(x['ID Cliente'])}] {x['Nombre']} - {x['Tel']}"
+            if pd.notnull(x['ID Cliente']) else f"{x['Nombre']} - {x['Tel']}", axis=1
         )
+        cliente_sel = st.selectbox("Selecciona cliente:", opciones_followup)
+        nombre = cliente_sel.split("] ")[-1].split(" - ")[0] if "]" in cliente_sel else cliente_sel.split(" - ")[0]
+        telefono = cliente_sel.split(" - ")[-1].replace("-", "").replace(" ", "")
 
-        nombre = cliente_sel.split(" - ")[0]
-        telefono = cliente_sel.split(" - ")[1].replace("-", "").replace(" ", "")
-
-        plantilla_ind = st.selectbox(
-            "Selecciona plantilla",
-            list(PLANTILLAS_MENSAJES.keys()),
-            key="plantilla_individual"
-        )
-
+        plantilla_ind = st.selectbox("Selecciona plantilla", list(PLANTILLAS_MENSAJES.keys()), key="plantilla_individual")
         mensaje_base = PLANTILLAS_MENSAJES[plantilla_ind]
-        mensaje_generado = mensaje_base.format(
-            nombre=nombre,
-            empresa=st.session_state.get("empresa", "nuestro negocio")
-        )
-
+        mensaje_generado = mensaje_base.format(nombre=nombre, empresa=st.session_state.get("empresa", "nuestro negocio"))
         mensaje = st.text_area("Mensaje", value=mensaje_generado)
 
         if telefono and telefono != "nan":
             telefono = "52" + telefono
-            mensaje_encoded = urllib.parse.quote(mensaje)
-            whatsapp_url = f"https://wa.me/{telefono}?text={mensaje_encoded}"
+            whatsapp_url = f"https://wa.me/{telefono}?text={urllib.parse.quote(mensaje)}"
             st.link_button("Enviar mensaje por WhatsApp", whatsapp_url)
         else:
             st.warning("Cliente sin teléfono válido")
@@ -1695,25 +1622,17 @@ elif pagina == "Agenda":
                 **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
                 **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
                 **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
-                **📅 Fecha:** {fecha_txt}{f' a las {hora_str}' if hora_str else ''}  
+                **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' a las {hora_str}' if hora_str else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **Estado:** {estado}
                 """)
                 tel = str(row.get("Tel", "")).replace("-", "").replace(" ", "")
                 if tel and tel != "nan":
                     tel_completo = "52" + tel
-                    # Mensaje con fecha relativa
-                    fecha_msg = fecha_relativa(fecha_row) if fecha_row else ""
                     hora_msg = f" a las {hora_str}" if hora_str else ""
-                    mensaje_template = plantillas.get("confirmacion",
-                        f"Hola {{nombre}}, confirmamos tu servicio con {{empresa}} para {fecha_msg}{hora_msg}.")
-                    mensaje = mensaje_template.format(
-                        nombre=limpiar_valor(row.get("Nombre")),
-                        empresa=empresa,
-                        fecha=fecha_msg,
-                        hora=hora_msg
-                    )
-                    url = f"https://wa.me/{tel_completo}?text={urllib.parse.quote(mensaje)}"
+                    fecha_completa = f"{fecha_row.strftime('%d/%m/%Y')} ({fecha_txt})" if fecha_row else ""
+                    mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para el {fecha_completa}{hora_msg}."
+                    url = f"https://wa.me/{tel_completo}?text={urllib.parse.quote(mensaje_confirmacion)}"
                     st.markdown(f"[💬 Enviar WhatsApp]({url})")
                 else:
                     st.warning("Cliente sin teléfono")
@@ -1721,13 +1640,14 @@ elif pagina == "Agenda":
 
     st.markdown("### ➕ Agendar nuevo servicio")
 
-    # ── BOTÓN VACIAR — key dinámico para limpiar el form ──
     if "form_key" not in st.session_state:
         st.session_state["form_key"] = 0
 
     if st.button("🗑️ Vaciar campos", key="vaciar_campos"):
         st.session_state["form_key"] += 1
         st.session_state["agenda_limpiar"] = True
+        for k in ["agenda_cliente_id", "agenda_cliente_nombre", "agenda_cliente_tel", "agenda_cliente_dir"]:
+            st.session_state.pop(k, None)
         st.rerun()
 
     limpiar = st.session_state.pop("agenda_limpiar", False)
@@ -1739,41 +1659,48 @@ elif pagina == "Agenda":
             if str(t).strip() not in ["", "nan"]
         )),
         Direccion=("Dirección", "last"),
-        Origen_ultimo=("Origen", "last")
     ).reset_index()
     clientes_info["ID Cliente"] = pd.to_numeric(clientes_info["ID Cliente"], errors="coerce")
     clientes_info = clientes_info.dropna(subset=["ID Cliente"])
     clientes_info["ID Cliente"] = clientes_info["ID Cliente"].astype(int)
-    clientes_info = clientes_info.sort_values("Nombre")
 
-    opciones_clientes = [""] + [
-        f"[{int(row['ID Cliente'])}] {row['Nombre']}"
-        for _, row in clientes_info.iterrows()
-    ]
-
-    cliente_sel = st.selectbox(
-        "Cliente existente (opcional) — busca por nombre o ID",
-        opciones_clientes,
-        index=0,
-        key=f"cliente_agenda_sel_{st.session_state['form_key']}"
+    buscar_agenda = st.text_input(
+        "🔍 Escribe nombre o ID para buscar cliente",
+        key=f"buscar_agenda_{st.session_state['form_key']}"
     )
 
-    tel_default = ""
-    dir_default = ""
+    if buscar_agenda and not limpiar:
+        if buscar_agenda.strip().isdigit():
+            clientes_filtrados = clientes_info[
+                clientes_info["ID Cliente"].astype(str).str.startswith(buscar_agenda.strip())
+            ].sort_values("ID Cliente", ascending=True)
+        else:
+            clientes_filtrados = clientes_info[
+                clientes_info["Nombre"].str.contains(buscar_agenda.strip(), case=False, na=False)
+            ].sort_values("Nombre")
+
+        st.caption(f"{len(clientes_filtrados)} resultado(s)")
+
+        for _, fila in clientes_filtrados.head(10).iterrows():
+            label = f"[{int(fila['ID Cliente'])}] {fila['Nombre']} — {fila['Telefonos']}"
+            if st.button(label, key=f"sel_cliente_{int(fila['ID Cliente'])}_{st.session_state['form_key']}"):
+                st.session_state["agenda_cliente_id"] = int(fila["ID Cliente"])
+                st.session_state["agenda_cliente_nombre"] = fila["Nombre"]
+                st.session_state["agenda_cliente_tel"] = fila["Telefonos"]
+                st.session_state["agenda_cliente_dir"] = str(fila["Direccion"]) if pd.notnull(fila["Direccion"]) else ""
+                st.rerun()
+
     id_cliente_default = None
     nombre_default = ""
+    tel_default = ""
+    dir_default = ""
 
-    if cliente_sel and not limpiar:
-        try:
-            id_extraido = int(cliente_sel.split("]")[0].replace("[", "").strip())
-            fila_cliente = clientes_info[clientes_info["ID Cliente"] == id_extraido]
-            if not fila_cliente.empty:
-                tel_default = fila_cliente.iloc[0]["Telefonos"]
-                dir_default = str(fila_cliente.iloc[0]["Direccion"]) if pd.notnull(fila_cliente.iloc[0]["Direccion"]) else ""
-                id_cliente_default = id_extraido
-                nombre_default = fila_cliente.iloc[0]["Nombre"]
-        except:
-            pass
+    if "agenda_cliente_id" in st.session_state and not limpiar:
+        id_cliente_default = st.session_state["agenda_cliente_id"]
+        nombre_default = st.session_state.get("agenda_cliente_nombre", "")
+        tel_default = st.session_state.get("agenda_cliente_tel", "")
+        dir_default = st.session_state.get("agenda_cliente_dir", "")
+        st.info(f"✅ Cliente seleccionado: [{id_cliente_default}] {nombre_default}")
 
     ORIGENES = ["Rep", "Int", "Rec", "Face", "Amigo", "Club", "Maristas"]
 
@@ -1783,9 +1710,8 @@ elif pagina == "Agenda":
         direccion = st.text_input("Dirección", value=dir_default)
         servicio = st.text_input("Servicio")
         origen_input = st.selectbox(
-            "Origen",
-            ORIGENES,
-            index=0 if cliente_sel else 1
+            "Origen", ORIGENES,
+            index=0 if id_cliente_default else 1
         )
 
         col1, col2, col3 = st.columns(3)
@@ -1802,56 +1728,79 @@ elif pagina == "Agenda":
             if not nombre.strip():
                 st.error("El nombre del cliente es obligatorio.")
             else:
-                try:
-                    client_auth = get_supabase_auth()
+                # ── VERIFICAR CONFLICTO DE HORARIO ──
+                conflicto = False
+                if hora:
+                    hora_str_nueva = hora.strftime("%H:%M")
+                    df_conflicto = df_a[
+                        (df_a["Fecha"].dt.date == fecha) &
+                        (df_a["hora"] == hora_str_nueva) &
+                        (df_a["realizado"] == False)
+                    ]
+                    if not df_conflicto.empty:
+                        conflicto = True
+                        nombres_conflicto = ", ".join(df_conflicto["Nombre"].dropna().tolist())
+                        st.warning(f"⚠️ Ya hay un servicio agendado a las {hora_str_nueva} el {fecha.strftime('%d/%m/%Y')} — {nombres_conflicto}. Puedes continuar si quieres agendar de todas formas.")
 
-                    # ── ID cliente correcto ──
-                    id_cliente = None
-                    if id_cliente_default and str(id_cliente_default) not in ["", "nan", "None"]:
-                        id_cliente = int(id_cliente_default)
-                    else:
-                        # Buscar el max ID en Supabase para asignar el siguiente
-                        max_id_resp = client_auth.table("clientes")\
-                            .select("cliente_id")\
-                            .eq("empresa_id", st.session_state["empresa_id"])\
-                            .not_.is_("cliente_id", "null")\
-                            .order("cliente_id", desc=True)\
-                            .limit(1)\
-                            .execute()
-                        if max_id_resp.data and max_id_resp.data[0]["cliente_id"]:
-                            id_cliente = int(max_id_resp.data[0]["cliente_id"]) + 1
+                if not conflicto or st.session_state.get("forzar_agenda", False):
+                    try:
+                        client_auth = get_supabase_auth()
+
+                        id_cliente = None
+                        if id_cliente_default and str(id_cliente_default) not in ["", "nan", "None"]:
+                            id_cliente = int(id_cliente_default)
                         else:
-                            id_cliente = 1
+                            max_id_resp = client_auth.table("clientes")\
+                                .select("cliente_id")\
+                                .eq("empresa_id", st.session_state["empresa_id"])\
+                                .not_.is_("cliente_id", "null")\
+                                .order("cliente_id", desc=True)\
+                                .limit(1)\
+                                .execute()
+                            if max_id_resp.data and max_id_resp.data[0]["cliente_id"]:
+                                id_cliente = int(max_id_resp.data[0]["cliente_id"]) + 1
+                            else:
+                                id_cliente = 1
 
-                    hora_str = hora.strftime("%H:%M") if hora else None
+                        hora_str = hora.strftime("%H:%M") if hora else None
 
-                    client_auth.table("clientes").insert({
-                        "empresa_id": st.session_state["empresa_id"],
-                        "cliente_id": id_cliente,
-                        "nombre": nombre,
-                        "tel": telefono,
-                        "direccion": direccion,
-                        "servicio": servicio,
-                        "fecha": fecha.isoformat(),
-                        "monto": float(monto),
-                        "origen": origen_input,
-                        "año": fecha.year,
-                        "realizado": False,
-                        "hora": hora_str
-                    }).execute()
+                        client_auth.table("clientes").insert({
+                            "empresa_id": st.session_state["empresa_id"],
+                            "cliente_id": id_cliente,
+                            "nombre": nombre,
+                            "tel": telefono,
+                            "direccion": direccion,
+                            "servicio": servicio,
+                            "fecha": fecha.isoformat(),
+                            "monto": float(monto),
+                            "origen": origen_input,
+                            "año": fecha.year,
+                            "realizado": False,
+                            "hora": hora_str
+                        }).execute()
 
-                    fecha_txt = fecha_relativa(fecha)
-                    hora_txt = f" a las {hora_str}" if hora_str else ""
-                    st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha_txt}{hora_txt}")
-                    st.cache_data.clear()
-                    if "evento_seleccionado" in st.session_state:
-                        del st.session_state["evento_seleccionado"]
-                    import time as t
-                    t.sleep(1)
-                    st.rerun()
+                        fecha_txt = fecha_relativa(fecha)
+                        hora_txt = f" a las {hora_str}" if hora_str else ""
+                        st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt}")
+                        st.cache_data.clear()
+                        st.session_state.pop("forzar_agenda", None)
+                        for k in ["agenda_cliente_id", "agenda_cliente_nombre", "agenda_cliente_tel", "agenda_cliente_dir"]:
+                            st.session_state.pop(k, None)
+                        if "evento_seleccionado" in st.session_state:
+                            del st.session_state["evento_seleccionado"]
+                        import time as t
+                        t.sleep(1)
+                        st.rerun()
 
-                except Exception as e:
-                    st.error(f"Error al agendar: {e}")
+                    except Exception as e:
+                        st.error(f"Error al agendar: {e}")
+                else:
+                    st.session_state["forzar_agenda"] = True
+
+    # Botón fuera del form para forzar agendar con conflicto
+    if st.session_state.get("forzar_agenda", False):
+        if st.button("⚠️ Agendar de todas formas", use_container_width=True):
+            st.rerun()
 
     st.markdown("---")
 
@@ -1928,7 +1877,7 @@ elif pagina == "Agenda":
                 **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
                 **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
                 **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
-                **📅 Fecha:** {fecha_txt}{f' a las {hora_row}' if hora_row else ''}  
+                **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' a las {hora_row}' if hora_row else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **🔍 Origen:** {limpiar_valor(row.get('Origen'))}  
                 **💬 Comentarios:** {limpiar_valor(row.get('Comentarios con llamada posterior a venta'))}  
@@ -1943,11 +1892,11 @@ elif pagina == "Agenda":
             if tel_ev and tel_ev not in ["nan", ""]:
                 tel_ev = "52" + tel_ev
                 hora_msg = f" a las {hora_row}" if hora_row else ""
-                mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para {fecha_txt}{hora_msg}."
+                fecha_completa_ev = f"{fecha_row.strftime('%d/%m/%Y')} ({fecha_txt})" if fecha_row else ""
+                mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para el {fecha_completa_ev}{hora_msg}."
                 url = f"https://wa.me/{tel_ev}?text={urllib.parse.quote(mensaje_confirmacion)}"
                 st.markdown(f"[💬 Enviar recordatorio]({url})")
 
-            # ── MARCAR COMO REALIZADO ──
             if not realizado:
                 if st.button("✅ Marcar como realizado y guardar en Sheets", use_container_width=True, type="primary"):
                     try:
@@ -1983,10 +1932,8 @@ elif pagina == "Agenda":
                             id_cli = row.get("ID Cliente")
                             id_cli_limpio = int(id_cli) if id_cli and str(id_cli) not in ["", "nan", "None"] and pd.notnull(id_cli) else ""
 
-                            # Verde SOLO si origen es Rep
                             es_rep = origen_real.lower() == "rep"
 
-                            # Rojo si comentarios negativos
                             comentario = limpiar_valor(row.get("Comentarios con llamada posterior a venta"), "").lower()
                             cliente_no_contactar = any(p in comentario for p in [
                                 "no se llama", "no contactar", "no vuelve", "cliente no deseable", "muy mal"
@@ -2044,7 +1991,6 @@ elif pagina == "Agenda":
             else:
                 st.success("✅ Este servicio ya fue realizado y guardado en Sheets.")
 
-            # ── EDITAR DATOS ──
             st.markdown("#### ✏️ Editar datos del servicio")
             with st.form("editar_servicio_form"):
                 edit_nombre = st.text_input("Nombre", value=limpiar_valor(row.get("Nombre")))
@@ -2084,7 +2030,6 @@ elif pagina == "Agenda":
                     except Exception as e:
                         st.error(f"Error al editar: {e}")
 
-            # ── EDITAR FECHA Y HORA ──
             st.markdown("#### 📅 Corregir fecha y hora del servicio")
             with st.form("editar_fecha_form"):
                 col1, col2 = st.columns(2)
@@ -2114,7 +2059,6 @@ elif pagina == "Agenda":
                     except Exception as e:
                         st.error(f"Error al cambiar fecha: {e}")
 
-            # ── ELIMINAR ──
             st.markdown("#### 🗑️ Eliminar servicio")
             with st.form("borrar_form"):
                 st.warning("Esta acción no se puede deshacer.")
