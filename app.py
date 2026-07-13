@@ -515,7 +515,7 @@ app_config = USUARIOS.get(st.session_state["usuario"], {}).get("app", {})
 NOMBRE_APP = app_config.get("nombre", "CRM Dashboard")
 
 # ── CARGAR DATOS DESDE SUPABASE ──
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def cargar_datos(empresa_id, access_token):
     try:
         client = create_client(
@@ -1816,7 +1816,8 @@ elif pagina == "Agenda":
 
     st.markdown("### 📅 Calendario de servicios")
 
-    df_cal = df_a[df_a["Fecha"].dt.year >= 2021].copy()
+    año_actual = datetime.now().year
+    df_cal = df_a[df_a["Fecha"].dt.year >= año_actual - 1].copy()
     df_cal = df_cal.dropna(subset=["Fecha"])
 
     eventos = []
