@@ -1816,8 +1816,11 @@ elif pagina == "Agenda":
 
     st.markdown("### 📅 Calendario de servicios")
 
-    año_actual = datetime.now().year
-    df_cal = df_a[df_a["Fecha"].dt.year >= año_actual - 1].copy()
+    hoy = datetime.now()
+    df_cal = df_a[
+        (df_a["Fecha"].dt.year == hoy.year) &
+        (df_a["Fecha"].dt.month == hoy.month)
+    ].copy()
     df_cal = df_cal.dropna(subset=["Fecha"])
 
     eventos = []
