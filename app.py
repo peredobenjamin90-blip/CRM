@@ -271,6 +271,22 @@ st.markdown("""
         background-color: #1A1D2E !important;
         border-radius: 12px;
     }
+
+    /* ── DATE PICKER ── */
+    [data-baseweb="calendar"] {
+        background-color: #FFFFFF !important;
+    }
+    [data-baseweb="calendar"] * {
+        color: #111111 !important;
+        background-color: transparent !important;
+    }
+    [data-baseweb="calendar"] button {
+        color: #111111 !important;
+    }
+    [data-baseweb="calendar"] [aria-selected="true"] {
+        background-color: #6C63FF !important;
+        color: #FFFFFF !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
