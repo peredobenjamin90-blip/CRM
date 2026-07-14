@@ -275,17 +275,29 @@ st.markdown("""
     /* ── DATE PICKER ── */
     [data-baseweb="calendar"] {
         background-color: #FFFFFF !important;
+        border-radius: 8px !important;
     }
-    [data-baseweb="calendar"] * {
+    [data-baseweb="calendar"] *:not([aria-selected="true"]) {
         color: #111111 !important;
-        background-color: transparent !important;
+        background-color: #FFFFFF !important;
     }
     [data-baseweb="calendar"] button {
+        color: #111111 !important;
+        background-color: #FFFFFF !important;
+    }
+    [data-baseweb="calendar"] button:hover {
+        background-color: #EFEFFF !important;
         color: #111111 !important;
     }
     [data-baseweb="calendar"] [aria-selected="true"] {
         background-color: #6C63FF !important;
         color: #FFFFFF !important;
+    }
+    [data-baseweb="calendar"] [aria-selected="true"] * {
+        color: #FFFFFF !important;
+    }
+    div[data-testid="stDateInput"] div {
+        background-color: #FFFFFF !important;
     }
 </style>
 """, unsafe_allow_html=True)
