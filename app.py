@@ -313,6 +313,43 @@ st.markdown("""
         color: #F0F2F6 !important;
         border: 1px solid #4D4F65 !important;
     }
+    /* ── DATE PICKER ── */
+    [data-baseweb="calendar"] {
+        background-color: #FFFFFF !important;
+        border-radius: 8px !important;
+    }
+    [data-baseweb="calendar"] * {
+        color: #111111 !important;
+        background-color: #FFFFFF !important;
+    }
+    [data-baseweb="calendar"] button {
+        color: #111111 !important;
+        background-color: #FFFFFF !important;
+    }
+    [data-baseweb="calendar"] button:hover {
+        background-color: #EFEFFF !important;
+    }
+    [data-baseweb="calendar"] [aria-selected="true"],
+    [data-baseweb="calendar"] [aria-selected="true"] * {
+        background-color: #6C63FF !important;
+        color: #FFFFFF !important;
+    }
+    [data-baseweb="calendar"] [aria-disabled="true"],
+    [data-baseweb="calendar"] [aria-disabled="true"] * {
+        background-color: #FFFFFF !important;
+        color: #BBBBBB !important;
+    }
+    /* ── DATE INPUT LABEL ── */
+    [data-testid="stDateInput"] label {
+        color: #F0F2F6 !important;
+        font-size: 15px !important;
+        font-weight: 500 !important;
+    }
+    [data-testid="stDateInput"] input {
+        background-color: #1A1D2E !important;
+        color: #F0F2F6 !important;
+        border: 1px solid #4D4F65 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
