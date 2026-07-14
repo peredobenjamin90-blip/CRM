@@ -299,6 +299,20 @@ st.markdown("""
     div[data-testid="stDateInput"] div {
         background-color: #FFFFFF !important;
     }
+    /* ── DATE PICKER FIXES ── */
+    [data-baseweb="calendar"] [aria-disabled="true"] {
+        background-color: #FFFFFF !important;
+        color: #CCCCCC !important;
+    }
+    [data-baseweb="calendar"] [aria-disabled="true"] * {
+        background-color: #FFFFFF !important;
+        color: #CCCCCC !important;
+    }
+    [data-testid="stDateInput"] input {
+        background-color: #1A1D2E !important;
+        color: #F0F2F6 !important;
+        border: 1px solid #4D4F65 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
