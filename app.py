@@ -350,6 +350,20 @@ st.markdown("""
         color: #F0F2F6 !important;
         border: 1px solid #4D4F65 !important;
     }
+    /* ── FORM LABELS ── */
+    .stForm label,
+    .stForm p,
+    [data-testid="stForm"] label,
+    [data-testid="stForm"] p,
+    [data-testid="stDateInput"] label,
+    [data-testid="stTimeInput"] label,
+    .stDateInput label,
+    .stTimeInput label {
+        color: #F0F2F6 !important;
+        opacity: 1 !important;
+        font-size: 15px !important;
+        font-weight: 500 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
