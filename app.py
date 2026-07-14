@@ -29,14 +29,14 @@ st.markdown("""
 <style>
     /* ── FONDO GENERAL ── */
     .stApp {
-        background-color: #0F1117;
-        color: #F0F2F6;
+        background-color: #F5F7FA;
+        color: #1A1D2E;
     }
 
     /* ── SIDEBAR ── */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1A1D2E 0%, #0F1117 100%);
-        border-right: 1px solid #2D2F3E;
+        background: linear-gradient(180deg, #1A1D2E 0%, #2D3561 100%);
+        border-right: none;
     }
     [data-testid="stSidebar"] * { color: #F0F2F6 !important; }
     [data-testid="stSidebar"] > div:first-child { padding-top: 0rem !important; }
@@ -44,39 +44,40 @@ st.markdown("""
 
     /* ── MÉTRICAS ── */
     [data-testid="stMetric"] {
-        background: linear-gradient(135deg, #1A1D2E 0%, #16192A 100%) !important;
+        background: #FFFFFF !important;
         border-radius: 12px;
         padding: 16px;
-        border: 1px solid #3D3F50;
-        border-top: 2px solid #6C63FF;
+        border: 1px solid #E2E8F0;
+        border-top: 3px solid #4F6AF0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
     [data-testid="stMetricValue"] {
-        font-size: clamp(16px, 2vw, 30px) !important;
-        color: #FFFFFF !important;
+        font-size: clamp(16px, 2vw, 28px) !important;
+        color: #1A1D2E !important;
         font-weight: 700 !important;
     }
     [data-testid="stMetricLabel"] {
-        color: #C8CADB !important;
+        color: #64748B !important;
         font-size: 14px !important;
         font-weight: 500 !important;
     }
 
     /* ── TÍTULOS ── */
     h1 {
-        color: #FFFFFF !important;
+        color: #1A1D2E !important;
         font-weight: 700 !important;
         font-size: 2rem !important;
         letter-spacing: -0.5px;
     }
     h2, h3 {
-        color: #A78BFA !important;
+        color: #4F6AF0 !important;
         font-weight: 600 !important;
-        font-size: 1.3rem !important;
+        font-size: 1.2rem !important;
     }
 
     /* ── TEXTO GENERAL ── */
-    p, span, div, label {
-        color: #F0F2F6 !important;
+    p, span, label {
+        color: #1A1D2E !important;
         font-size: 15px !important;
     }
 
@@ -89,7 +90,7 @@ st.markdown("""
     .stCheckbox label,
     .stTextArea label,
     .stTimeInput label {
-        color: #F0F2F6 !important;
+        color: #1A1D2E !important;
         font-size: 15px !important;
         font-weight: 500 !important;
     }
@@ -98,67 +99,68 @@ st.markdown("""
     .stTextInput > div > div > input,
     .stNumberInput > div > div > input,
     .stTextArea > div > div > textarea {
-        background-color: #1A1D2E !important;
-        border: 1px solid #4D4F65 !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #CBD5E1 !important;
         border-radius: 8px !important;
-        color: #F0F2F6 !important;
+        color: #1A1D2E !important;
         font-size: 15px !important;
     }
+    .stTextInput > div > div > input:focus,
+    .stNumberInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus {
+        border: 1px solid #4F6AF0 !important;
+        box-shadow: 0 0 0 3px rgba(79,106,240,0.1) !important;
+    }
 
-    /* ── SELECTBOX CERRADO ── */
+    /* ── SELECTBOX ── */
     .stSelectbox > div > div {
-        background-color: #1A1D2E !important;
-        border: 1px solid #4D4F65 !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #CBD5E1 !important;
         border-radius: 8px !important;
-        color: #F0F2F6 !important;
+        color: #1A1D2E !important;
         font-size: 15px !important;
     }
 
-    /* ── DROPDOWN ABIERTO — fondo blanco letra negra ── */
-    [data-baseweb="popover"] * {
-        background-color: #FFFFFF !important;
-        color: #111111 !important;
-    }
-    [data-baseweb="menu"] {
-        background-color: #FFFFFF !important;
-    }
-    [data-baseweb="menu"] li {
-        color: #111111 !important;
-        font-size: 15px !important;
-        font-weight: 500 !important;
-    }
-    [data-baseweb="menu"] li:hover {
-        background-color: #E8E8F0 !important;
-        color: #000000 !important;
-    }
+    /* ── DROPDOWN ABIERTO ── */
+    [data-baseweb="popover"],
+    [data-baseweb="menu"],
     [data-baseweb="option"] {
-        color: #111111 !important;
         background-color: #FFFFFF !important;
+        color: #1A1D2E !important;
         font-size: 15px !important;
-        font-weight: 500 !important;
     }
-    [data-baseweb="option"]:hover,
-    [data-baseweb="option"][aria-selected="true"] {
-        background-color: #E8E8F0 !important;
-        color: #000000 !important;
+    [data-baseweb="option"]:hover {
+        background-color: #EEF2FF !important;
+        color: #1A1D2E !important;
     }
-    /* Forzar texto negro en TODOS los elementos dentro del popover */
-    [data-baseweb="popover"] span,
-    [data-baseweb="popover"] div,
-    [data-baseweb="popover"] p,
-    [data-baseweb="popover"] li {
-        color: #111111 !important;
-        background-color: transparent !important;
+
+    /* ── DATE PICKER ── */
+    [data-baseweb="calendar"] {
+        background-color: #FFFFFF !important;
+        border-radius: 8px !important;
+        border: 1px solid #CBD5E1 !important;
     }
-    /* Excepción: el highlight de selección actual */
-    [aria-selected="true"] {
-        background-color: #EFEFFF !important;
-        color: #111111 !important;
+    [data-baseweb="calendar"] * {
+        color: #1A1D2E !important;
+        background-color: #FFFFFF !important;
+    }
+    [data-baseweb="calendar"] button:hover {
+        background-color: #EEF2FF !important;
+    }
+    [data-baseweb="calendar"] [aria-selected="true"],
+    [data-baseweb="calendar"] [aria-selected="true"] * {
+        background-color: #4F6AF0 !important;
+        color: #FFFFFF !important;
+    }
+    [data-baseweb="calendar"] [aria-disabled="true"],
+    [data-baseweb="calendar"] [aria-disabled="true"] * {
+        color: #CBD5E1 !important;
+        background-color: #FFFFFF !important;
     }
 
     /* ── BOTONES NORMALES ── */
     .stButton > button {
-        background: linear-gradient(135deg, #6C63FF 0%, #A78BFA 100%);
+        background: linear-gradient(135deg, #4F6AF0 0%, #7C3AED 100%);
         color: white !important;
         border: none;
         border-radius: 8px;
@@ -166,16 +168,16 @@ st.markdown("""
         font-size: 15px;
         width: 100%;
         font-weight: 600;
-        letter-spacing: 0.3px;
+        box-shadow: 0 2px 4px rgba(79,106,240,0.3);
     }
     .stButton > button:hover {
-        opacity: 0.85;
-        border: none;
+        opacity: 0.9;
+        box-shadow: 0 4px 8px rgba(79,106,240,0.4);
     }
 
     /* ── FORM SUBMIT BUTTON ── */
     [data-testid="stFormSubmitButton"] > button {
-        background: linear-gradient(135deg, #6C63FF 0%, #A78BFA 100%) !important;
+        background: linear-gradient(135deg, #4F6AF0 0%, #7C3AED 100%) !important;
         color: white !important;
         border: none !important;
         font-weight: 600 !important;
@@ -183,186 +185,88 @@ st.markdown("""
         border-radius: 8px !important;
         width: 100% !important;
         padding: 12px 24px !important;
-    }
-    [data-testid="stFormSubmitButton"] > button:hover {
-        opacity: 0.85 !important;
-        border: none !important;
-    }
-    button[kind="formSubmit"],
-    button[kind="primaryFormSubmit"],
-    button[kind="secondaryFormSubmit"] {
-        background: linear-gradient(135deg, #6C63FF 0%, #A78BFA 100%) !important;
-        color: white !important;
-        border: none !important;
-        font-weight: 600 !important;
-        border-radius: 8px !important;
+        box-shadow: 0 2px 4px rgba(79,106,240,0.3) !important;
     }
 
     /* ── FORM CONTAINER ── */
     .stForm {
-        background-color: #1A1D2E !important;
-        border: 1px solid #3D3F50 !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
         border-radius: 12px !important;
         padding: 24px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
     }
 
     /* ── DATAFRAME ── */
     .stDataFrame {
-        border: 1px solid #3D3F50;
+        border: 1px solid #E2E8F0;
         border-radius: 12px;
         overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
 
     /* ── CAPTION ── */
     .stCaption {
-        color: #C8CADB !important;
+        color: #64748B !important;
         font-size: 13px !important;
     }
 
     /* ── DIVISORES ── */
-    hr { border-color: #3D3F50 !important; }
+    hr { border-color: #E2E8F0 !important; }
 
     /* ── EXPANDER ── */
     .streamlit-expanderHeader {
-        background-color: #1A1D2E !important;
-        border: 1px solid #3D3F50 !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
         border-radius: 8px !important;
-        color: #F0F2F6 !important;
+        color: #1A1D2E !important;
         font-size: 15px !important;
     }
 
     /* ── ALERTS ── */
     .stSuccess {
-        background-color: #0D2818 !important;
-        border: 1px solid #10B981 !important;
+        background-color: #F0FDF4 !important;
+        border: 1px solid #86EFAC !important;
         border-radius: 8px !important;
-        color: #FFFFFF !important;
+        color: #166534 !important;
     }
     .stError {
-        background-color: #2D0F0F !important;
-        border: 1px solid #EF4444 !important;
+        background-color: #FEF2F2 !important;
+        border: 1px solid #FCA5A5 !important;
         border-radius: 8px !important;
-        color: #FFFFFF !important;
+        color: #991B1B !important;
     }
     .stWarning {
-        background-color: #2D1F0F !important;
-        border: 1px solid #F59E0B !important;
+        background-color: #FFFBEB !important;
+        border: 1px solid #FCD34D !important;
         border-radius: 8px !important;
-        color: #FFFFFF !important;
+        color: #92400E !important;
     }
     .stInfo {
-        background-color: #0F1D2D !important;
-        border: 1px solid #6C63FF !important;
+        background-color: #EEF2FF !important;
+        border: 1px solid #A5B4FC !important;
         border-radius: 8px !important;
-        color: #FFFFFF !important;
+        color: #3730A3 !important;
     }
 
     /* ── MARKDOWN BOLD ── */
-    strong { color: #FFFFFF !important; }
+    strong { color: #1A1D2E !important; }
 
     /* ── PLACEHOLDER ── */
     input::placeholder {
-        color: #9B9DB0 !important;
+        color: #94A3B8 !important;
         opacity: 1 !important;
     }
 
-    /* ── PÁGINA SERVICIOS — fondo visible ── */
-    .js-plotly-plot {
-        background-color: #1A1D2E !important;
-        border-radius: 12px;
-    }
-
-    /* ── DATE PICKER ── */
-    [data-baseweb="calendar"] {
-        background-color: #FFFFFF !important;
-        border-radius: 8px !important;
-    }
-    [data-baseweb="calendar"] *:not([aria-selected="true"]) {
-        color: #111111 !important;
-        background-color: #FFFFFF !important;
-    }
-    [data-baseweb="calendar"] button {
-        color: #111111 !important;
-        background-color: #FFFFFF !important;
-    }
-    [data-baseweb="calendar"] button:hover {
-        background-color: #EFEFFF !important;
-        color: #111111 !important;
-    }
-    [data-baseweb="calendar"] [aria-selected="true"] {
-        background-color: #6C63FF !important;
-        color: #FFFFFF !important;
-    }
-    [data-baseweb="calendar"] [aria-selected="true"] * {
-        color: #FFFFFF !important;
-    }
-    div[data-testid="stDateInput"] div {
-        background-color: #FFFFFF !important;
-    }
-    /* ── DATE PICKER FIXES ── */
-    [data-baseweb="calendar"] [aria-disabled="true"] {
-        background-color: #FFFFFF !important;
-        color: #CCCCCC !important;
-    }
-    [data-baseweb="calendar"] [aria-disabled="true"] * {
-        background-color: #FFFFFF !important;
-        color: #CCCCCC !important;
-    }
-    [data-testid="stDateInput"] input {
-        background-color: #1A1D2E !important;
+    /* ── SIDEBAR BOTONES ── */
+    [data-testid="stSidebar"] .stButton > button {
+        background: rgba(255,255,255,0.1) !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
         color: #F0F2F6 !important;
-        border: 1px solid #4D4F65 !important;
+        box-shadow: none !important;
     }
-    /* ── DATE PICKER ── */
-    [data-baseweb="calendar"] {
-        background-color: #FFFFFF !important;
-        border-radius: 8px !important;
-    }
-    [data-baseweb="calendar"] * {
-        color: #111111 !important;
-        background-color: #FFFFFF !important;
-    }
-    [data-baseweb="calendar"] button {
-        color: #111111 !important;
-        background-color: #FFFFFF !important;
-    }
-    [data-baseweb="calendar"] button:hover {
-        background-color: #EFEFFF !important;
-    }
-    [data-baseweb="calendar"] [aria-selected="true"],
-    [data-baseweb="calendar"] [aria-selected="true"] * {
-        background-color: #6C63FF !important;
-        color: #FFFFFF !important;
-    }
-    [data-baseweb="calendar"] [aria-disabled="true"],
-    [data-baseweb="calendar"] [aria-disabled="true"] * {
-        background-color: #FFFFFF !important;
-        color: #BBBBBB !important;
-    }
-    /* ── DATE INPUT LABEL ── */
-    [data-testid="stDateInput"] label {
-        color: #F0F2F6 !important;
-        font-size: 15px !important;
-        font-weight: 500 !important;
-    }
-    [data-testid="stDateInput"] input {
-        background-color: #1A1D2E !important;
-        color: #F0F2F6 !important;
-        border: 1px solid #4D4F65 !important;
-    }
-    /* ── FORM LABELS ── */
-    .stForm label,
-    .stForm p,
-    [data-testid="stForm"] label,
-    [data-testid="stForm"] p,
-    [data-testid="stDateInput"] label,
-    [data-testid="stTimeInput"] label,
-    .stDateInput label,
-    .stTimeInput label {
-        color: #F0F2F6 !important;
-        opacity: 1 !important;
-        font-size: 15px !important;
-        font-weight: 500 !important;
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background: rgba(255,255,255,0.2) !important;
     }
 </style>
 """, unsafe_allow_html=True)
