@@ -12,6 +12,8 @@ def generar_hoja_servicio(
     folio="",
     origen="",
     servicio="",
+    cantidad="",
+    paquete="",
     tecnico="",
     template_path="assets/Hoja de servicio de Maxi Clean.pdf"
 ):
@@ -44,8 +46,13 @@ def generar_hoja_servicio(
         (142, 342, 248, 356, hora, 9),
         (295, 342, 530, 356, tecnico, 9),
         (594, 342, 762, 356, origen, 9),
-        (32, 572, 490, 586, servicio, 9),
-    ]
+        # Descripción servicio
+        (70, 572, 490, 586, servicio, 9),
+        # Paquete
+        (493, 572, 560, 586, paquete, 9),
+        # Cantidad
+        (563, 572, 620, 586, cantidad, 9),
+    ]    
 
     packet = io.BytesIO()
     c = canvas.Canvas(packet, pagesize=(pdf_width, pdf_height))

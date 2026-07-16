@@ -1544,7 +1544,7 @@ elif pagina == "Agenda":
                 **🆔 ID:** {limpiar_valor(row.get('ID Cliente'))}  
                 **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
                 **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
-                **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
+                **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))} {f"({limpiar_valor(row.get('cantidad'))} — {limpiar_valor(row.get('paquete'))})" if limpiar_valor(row.get('cantidad')) else ''}  
                 **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' entre las {rango}' if rango else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **Estado:** {estado}
@@ -1626,12 +1626,21 @@ elif pagina == "Agenda":
         st.info(f"✅ Cliente seleccionado: [{id_cliente_default}] {nombre_default}")
 
     ORIGENES = ["Rep", "Int", "Rec", "Face", "Amigo", "Club", "Maristas"]
+    PAQUETES = ["", "Premium", "Protector", "Ecológico", "Sencillo"]
 
     with st.form(f"agendar_servicio_{st.session_state['form_key']}"):
         nombre = st.text_input("Nombre del cliente", value=nombre_default)
         telefono = st.text_input("Teléfono(s)", value=tel_default)
         direccion = st.text_input("Dirección", value=dir_default)
-        servicio = st.text_input("Servicio")
+
+        col_s1, col_s2, col_s3 = st.columns([3, 1, 2])
+        with col_s1:
+            servicio = st.text_input("Servicio", placeholder="Ej: Tapetes sint, Sala...")
+        with col_s2:
+            cantidad = st.text_input("Cantidad", placeholder="Ej: 4")
+        with col_s3:
+            paquete = st.selectbox("Paquete", PAQUETES)
+
         origen_input = st.selectbox(
             "Origen", ORIGENES,
             index=0 if id_cliente_default else 1
@@ -1687,6 +1696,13 @@ elif pagina == "Agenda":
                         hora_str = hora.strftime("%H:%M") if hora else None
                         rango_nuevo = rango_hora(hora_str)
 
+                        # Construir descripción completa para Sheets
+                        servicio_completo = servicio
+                        if cantidad:
+                            servicio_completo = f"{cantidad} {servicio}"
+                        if paquete:
+                            servicio_completo += f", {paquete}"
+
                         client_auth.table("clientes").insert({
                             "empresa_id": st.session_state["empresa_id"],
                             "cliente_id": id_cliente,
@@ -1694,6 +1710,8 @@ elif pagina == "Agenda":
                             "tel": telefono,
                             "direccion": direccion,
                             "servicio": servicio,
+                            "cantidad": cantidad,
+                            "paquete": paquete,
                             "fecha": fecha.isoformat(),
                             "monto": float(monto),
                             "origen": origen_input,
@@ -1715,7 +1733,7 @@ elif pagina == "Agenda":
                                 hora=rango_nuevo,
                                 folio="",
                                 origen=origen_input,
-                                servicio=servicio,
+                                servicio=servicio_completo,
                                 template_path="assets/Hoja de servicio de Maxi Clean.pdf"
                             )
                             st.download_button(
@@ -1767,8 +1785,10 @@ elif pagina == "Agenda":
         hora_ev = limpiar_valor(row.get("hora"))
         rango_ev = rango_hora(hora_ev)
         titulo = f"{'✅' if realizado else '⏳'} {limpiar_valor(row.get('Nombre'))} — {limpiar_valor(row.get('Servicio'))}"
+        if limpiar_valor(row.get("cantidad")):
+            titulo += f" ({limpiar_valor(row.get('cantidad'))})"
         if rango_ev:
-            titulo += f" ({rango_ev})"
+            titulo += f" {rango_ev}"
         eventos.append({
             "title": titulo,
             "start": row["Fecha"].strftime("%Y-%m-%d"),
@@ -1822,12 +1842,18 @@ elif pagina == "Agenda":
 
             col1, col2 = st.columns([3, 1])
             with col1:
+                servicio_detalle = limpiar_valor(row.get('Servicio'))
+                if limpiar_valor(row.get('cantidad')):
+                    servicio_detalle = f"{limpiar_valor(row.get('cantidad'))} {servicio_detalle}"
+                if limpiar_valor(row.get('paquete')):
+                    servicio_detalle += f" — {limpiar_valor(row.get('paquete'))}"
+
                 st.markdown(f"""
                 **👤 Cliente:** {limpiar_valor(row.get('Nombre'))}  
                 **🆔 ID:** {limpiar_valor(row.get('ID Cliente'))}  
                 **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
                 **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
-                **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
+                **🧼 Servicio:** {servicio_detalle}  
                 **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' entre las {rango_row}' if rango_row else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **🔍 Origen:** {limpiar_valor(row.get('Origen'))}  
@@ -1857,6 +1883,13 @@ elif pagina == "Agenda":
             try:
                 id_cli = row.get("ID Cliente")
                 folio_ev = f"{int(id_cli)}/{str(int(row.get('Año', hoy.year)))[-2:]}" if id_cli and pd.notnull(id_cli) else ""
+                cantidad_ev = limpiar_valor(row.get("cantidad"))
+                paquete_ev = limpiar_valor(row.get("paquete"))
+                servicio_ev = limpiar_valor(row.get("Servicio"))
+                servicio_completo_ev = f"{cantidad_ev} {servicio_ev}" if cantidad_ev else servicio_ev
+                if paquete_ev:
+                    servicio_completo_ev += f", {paquete_ev}"
+
                 pdf_bytes_ev = generar_hoja_servicio(
                     nombre=limpiar_valor(row.get("Nombre")),
                     direccion=limpiar_valor(row.get("Dirección")),
@@ -1865,7 +1898,9 @@ elif pagina == "Agenda":
                     hora=rango_row,
                     folio=folio_ev,
                     origen=limpiar_valor(row.get("Origen")),
-                    servicio=limpiar_valor(row.get("Servicio")),
+                    servicio=servicio_completo_ev,
+                    cantidad=cantidad_ev,
+                    paquete=paquete_ev,
                     template_path="assets/Hoja de servicio de Maxi Clean.pdf"
                 )
                 st.download_button(
@@ -1920,6 +1955,14 @@ elif pagina == "Agenda":
                                 "no se llama", "no contactar", "no vuelve", "cliente no deseable", "muy mal"
                             ])
 
+                            # Servicio completo para Sheets
+                            cant = limpiar_valor(row.get("cantidad"))
+                            paq = limpiar_valor(row.get("paquete"))
+                            serv = limpiar_valor(row.get("Servicio"))
+                            serv_sheets = f"{cant} {serv}" if cant else serv
+                            if paq:
+                                serv_sheets += f", {paq}"
+
                             nueva_fila = [
                                 siguiente_folio,
                                 folio_interno,
@@ -1930,7 +1973,7 @@ elif pagina == "Agenda":
                                 limpiar_valor(row.get("Dirección")),
                                 origen_real,
                                 float(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0,
-                                limpiar_valor(row.get("Servicio")),
+                                serv_sheets,
                                 limpiar_valor(row.get("Comentarios con llamada posterior a venta")),
                                 "", "", ""
                             ]
@@ -1991,7 +2034,17 @@ elif pagina == "Agenda":
                 edit_nombre = st.text_input("Nombre", value=limpiar_valor(row.get("Nombre")))
                 edit_tel = st.text_input("Teléfono", value=limpiar_valor(row.get("Tel")))
                 edit_dir = st.text_input("Dirección", value=limpiar_valor(row.get("Dirección")))
-                edit_servicio = st.text_input("Servicio", value=limpiar_valor(row.get("Servicio")))
+                col_e1, col_e2, col_e3 = st.columns([3, 1, 2])
+                with col_e1:
+                    edit_servicio = st.text_input("Servicio", value=limpiar_valor(row.get("Servicio")))
+                with col_e2:
+                    edit_cantidad = st.text_input("Cantidad", value=limpiar_valor(row.get("cantidad")))
+                with col_e3:
+                    paquete_actual = limpiar_valor(row.get("paquete"), "")
+                    edit_paquete = st.selectbox(
+                        "Paquete", PAQUETES,
+                        index=PAQUETES.index(paquete_actual) if paquete_actual in PAQUETES else 0
+                    )
                 edit_monto = st.number_input(
                     "Monto", min_value=0,
                     value=int(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0
@@ -2011,6 +2064,8 @@ elif pagina == "Agenda":
                             "tel": edit_tel,
                             "direccion": edit_dir,
                             "servicio": edit_servicio,
+                            "cantidad": edit_cantidad,
+                            "paquete": edit_paquete,
                             "monto": float(edit_monto),
                             "origen": edit_origen
                         }).eq("id", id_click).execute()
