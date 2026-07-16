@@ -42,7 +42,6 @@ def generar_hoja_servicio(
     servicio_linea2 = partes_servicio[1] if len(partes_servicio) > 1 else ""
 
     campos = [
-        (580, 112, 760, 128, folio, 9),
         (70, 173, 380, 188, nombre, 9),
         (70, 210, 762, 225, direccion, 9),
         (65, 272, 240, 287, "Zapopan, Jalisco", 9),
