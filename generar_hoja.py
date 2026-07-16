@@ -3,7 +3,6 @@ import os
 import io
 from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
 
 
 def generar_hoja_servicio(
@@ -38,20 +37,28 @@ def generar_hoja_servicio(
         return x0, y0, x1, y1
 
     campos = [
+        # Folio/Orden — esquina superior derecha
         (580, 112, 760, 128, folio, 9),
-        (70, 168, 380, 184, nombre, 9),
-        (70, 216, 762, 232, direccion, 9),
-        (55, 312, 200, 328, "Zapopan, Jalisco", 9),
-        (270, 312, 430, 328, telefono, 9),
-        (10, 410, 130, 426, fecha, 9),
-        (140, 410, 250, 426, hora, 9),
-        (260, 410, 490, 426, tecnico, 9),
-        (500, 410, 762, 426, origen, 9),
+        # Nombre
+        (70, 173, 380, 188, nombre, 9),
+        # Dirección
+        (70, 220, 762, 236, direccion, 9),
+        # Ciudad fija
+        (10, 340, 185, 356, "Zapopan, Jalisco", 9),
+        # Teléfono
+        (210, 340, 430, 356, telefono, 9),
+        # Fecha programada
+        (10, 418, 130, 434, fecha, 9),
+        # Hora programada
+        (135, 418, 255, 434, hora, 9),
+        # Técnico
+        (260, 418, 490, 434, tecnico, 9),
+        # Medio/Fuente
+        (500, 418, 762, 434, origen, 9),
     ]
 
     packet = io.BytesIO()
     c = canvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
-    c.setFont("Helvetica", 9)
     c.setFillColorRGB(0, 0, 0)
 
     for (ix, iy, ix2, iy2, texto, fsize) in campos:
