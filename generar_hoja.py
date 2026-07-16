@@ -11,10 +11,16 @@ def generar_hoja_servicio(
     hora="",
     folio="",
     origen="",
+    items=None,
+    subtotal=0,
+    descuento=0,
+    iva=0,
+    total=0,
+    tecnico="",
+    # compatibilidad hacia atrás
     servicio="",
     cantidad="",
     paquete="",
-    tecnico="",
     template_path="assets/Hoja de servicio de Maxi Clean.pdf"
 ):
     IMAGE_WIDTH = 772
@@ -36,12 +42,20 @@ def generar_hoja_servicio(
         y1 = pdf_height - (img_y * scale_y)
         return x0, y0, x1, y1
 
-    # Dividir servicio por coma si tiene más de uno
-    partes_servicio = [s.strip() for s in servicio.split(",", 1)] if "," in servicio else [servicio]
-    servicio_linea1 = partes_servicio[0]
-    servicio_linea2 = partes_servicio[1] if len(partes_servicio) > 1 else ""
+    # Si no hay items, usar campos legacy
+    if not items:
+        partes = [s.strip() for s in servicio.split(",", 1)] if "," in servicio else [servicio]
+        items = [{
+            "servicio": partes[0],
+            "cantidad": cantidad or 1,
+            "paquete": paquete,
+            "precio_unitario": 0,
+            "subtotal": total or subtotal
+        }]
+        if len(partes) > 1:
+            items.append({"servicio": partes[1], "cantidad": "", "paquete": "", "precio_unitario": 0, "subtotal": 0})
 
-    campos = [
+    campos_fijos = [
         (70, 173, 380, 188, nombre, 9),
         (70, 210, 762, 225, direccion, 9),
         (65, 272, 240, 287, "Zapopan, Jalisco", 9),
@@ -50,23 +64,48 @@ def generar_hoja_servicio(
         (142, 342, 248, 356, hora, 9),
         (295, 342, 530, 356, tecnico, 9),
         (594, 342, 762, 356, origen, 9),
-        # Descripción línea 1
-        (70, 572, 490, 586, servicio_linea1, 9),
-        # Paquete — bajo columna PAQUETE
-        (455, 572, 520, 586, paquete, 9),
-        # Cantidad — bajo columna CANTIDAD
-        (522, 572, 575, 586, cantidad, 9),
     ]
 
-    # Si hay segunda línea de servicio — más espacio
-    if servicio_linea2:
-        campos.append((70, 590, 490, 604, servicio_linea2, 9))
+    # Coordenadas Y de cada renglón de descripción
+    Y_RENGLONES = [572, 590, 608, 626, 644, 662, 680]
+
+    campos_items = []
+    for i, item in enumerate(items[:7]):
+        if i >= len(Y_RENGLONES):
+            break
+        y = Y_RENGLONES[i]
+        dy = 14
+        serv_txt = str(item.get("servicio", ""))
+        cant_txt = str(item.get("cantidad", "")) if item.get("cantidad") else ""
+        paq_txt = str(item.get("paquete", ""))
+        pu_txt = f"${item.get('precio_unitario', 0):,.0f}" if item.get("precio_unitario") else ""
+        sub_txt = f"${item.get('subtotal', 0):,.0f}" if item.get("subtotal") else ""
+
+        if serv_txt:
+            campos_items.append((70, y, 450, y + dy, serv_txt, 9))
+        if paq_txt:
+            campos_items.append((455, y, 520, y + dy, paq_txt, 9))
+        if cant_txt:
+            campos_items.append((522, y, 575, y + dy, cant_txt, 9))
+        if pu_txt:
+            campos_items.append((578, y, 660, y + dy, pu_txt, 9))
+        if sub_txt:
+            campos_items.append((663, y, 762, y + dy, sub_txt, 9))
+
+    # Totales
+    campos_totales = []
+    if subtotal > 0:
+        campos_totales.append((663, 755, 762, 769, f"${subtotal:,.0f}", 9))
+    if descuento > 0:
+        campos_totales.append((663, 769, 762, 783, f"-${descuento:,.0f}", 9))
+    if total > 0:
+        campos_totales.append((663, 840, 762, 854, f"${total:,.0f}", 9))
 
     packet = io.BytesIO()
     c = canvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     c.setFillColorRGB(0, 0, 0)
 
-    for (ix, iy, ix2, iy2, texto, fsize) in campos:
+    for (ix, iy, ix2, iy2, texto, fsize) in campos_fijos + campos_items + campos_totales:
         if not texto:
             continue
         x0, y0, x1, y1 = to_pdf_coords(ix, iy, ix2, iy2)

@@ -1466,6 +1466,10 @@ elif pagina == "Agenda":
     from datetime import datetime, timedelta
 
     SHEET_IDS = USUARIOS[st.session_state["usuario"]].get("sheets", {})
+    cotizador = USUARIOS[st.session_state["usuario"]].get("cotizador", {})
+    PRECIOS = cotizador.get("precios", {})
+    PAQUETES_COT = cotizador.get("paquetes", ["Sencillo", "Ecológico", "Protector", "Premium"])
+    MINIMO = 950
 
     def get_supabase_auth():
         client_auth = create_client(
@@ -1510,6 +1514,13 @@ elif pagina == "Agenda":
         except:
             return str(hora_str)
 
+    def precio_unitario(servicio, paquete, cantidad=1):
+        try:
+            precio = PRECIOS.get(servicio, {}).get(paquete, 0)
+            return precio * cantidad
+        except:
+            return 0
+
     df_a = df.copy()
     df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce")
     df_a["Monto"] = pd.to_numeric(df_a["Monto"], errors="coerce")
@@ -1544,7 +1555,7 @@ elif pagina == "Agenda":
                 **🆔 ID:** {limpiar_valor(row.get('ID Cliente'))}  
                 **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
                 **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
-                **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))} {f"({limpiar_valor(row.get('cantidad'))} — {limpiar_valor(row.get('paquete'))})" if limpiar_valor(row.get('cantidad')) else ''}  
+                **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
                 **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' entre las {rango}' if rango else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **Estado:** {estado}
@@ -1626,39 +1637,92 @@ elif pagina == "Agenda":
         st.info(f"✅ Cliente seleccionado: [{id_cliente_default}] {nombre_default}")
 
     ORIGENES = ["Rep", "Int", "Rec", "Face", "Amigo", "Club", "Maristas"]
-    PAQUETES = ["", "Premium", "Protector", "Ecológico", "Sencillo"]
+    PAQUETES = [""] + PAQUETES_COT
+    SERVICIOS_LISTA = [""] + list(PRECIOS.keys())
+    N_RENGLONES = 8
 
     with st.form(f"agendar_servicio_{st.session_state['form_key']}"):
         nombre = st.text_input("Nombre del cliente", value=nombre_default)
         telefono = st.text_input("Teléfono(s)", value=tel_default)
         direccion = st.text_input("Dirección", value=dir_default)
 
-        col_s1, col_s2, col_s3 = st.columns([3, 1, 2])
-        with col_s1:
-            servicio = st.text_input("Servicio", placeholder="Ej: Tapetes sint, Sala...")
-        with col_s2:
-            cantidad = st.text_input("Cantidad", placeholder="Ej: 4")
-        with col_s3:
-            paquete = st.selectbox("Paquete", PAQUETES)
+        st.markdown("**🧼 Servicios**")
+        st.caption("Selecciona hasta 8 servicios — el precio se calcula automáticamente")
 
-        origen_input = st.selectbox(
-            "Origen", ORIGENES,
-            index=0 if id_cliente_default else 1
-        )
+        # Headers
+        h1, h2, h3, h4, h5 = st.columns([4, 1, 2, 2, 2])
+        h1.markdown("**Servicio**")
+        h2.markdown("**Cant.**")
+        h3.markdown("**Paquete**")
+        h4.markdown("**P. Unitario**")
+        h5.markdown("**Subtotal**")
 
-        col1, col2, col3 = st.columns(3)
+        renglones = []
+        for i in range(N_RENGLONES):
+            c1, c2, c3, c4, c5 = st.columns([4, 1, 2, 2, 2])
+            with c1:
+                serv_i = st.selectbox(f"s{i}", SERVICIOS_LISTA, label_visibility="collapsed", key=f"serv_{i}_{st.session_state['form_key']}")
+            with c2:
+                cant_i = st.number_input(f"c{i}", min_value=0, value=0, label_visibility="collapsed", key=f"cant_{i}_{st.session_state['form_key']}")
+            with c3:
+                paq_i = st.selectbox(f"p{i}", PAQUETES, label_visibility="collapsed", key=f"paq_{i}_{st.session_state['form_key']}")
+            with c4:
+                p_unit = precio_unitario(serv_i, paq_i, 1) if serv_i and paq_i else 0
+                st.markdown(f"${p_unit:,.0f}" if p_unit else "—")
+            with c5:
+                subtotal_i = precio_unitario(serv_i, paq_i, cant_i) if serv_i and paq_i and cant_i > 0 else 0
+                st.markdown(f"${subtotal_i:,.0f}" if subtotal_i else "—")
+
+            if serv_i:
+                renglones.append({
+                    "servicio": serv_i,
+                    "cantidad": int(cant_i),
+                    "paquete": paq_i,
+                    "precio_unitario": p_unit,
+                    "subtotal": subtotal_i
+                })
+
+        # Totales
+        st.markdown("---")
+        subtotal_total = sum(r["subtotal"] for r in renglones)
+        subtotal_final = max(subtotal_total, MINIMO) if subtotal_total > 0 else 0
+
+        col_desc, col_val = st.columns([3, 1])
+        with col_desc:
+            aplica_descuento = st.checkbox("Aplicar descuento")
+            descuento_pct = st.number_input("Descuento (%)", min_value=0, max_value=100, value=0) if aplica_descuento else 0
+            aplica_iva = st.checkbox("Aplicar IVA 16% (cliente pide factura)")
+
+        monto_descuento = subtotal_final * descuento_pct / 100
+        base = subtotal_final - monto_descuento
+        iva = base * 0.16 if aplica_iva else 0
+        total_final = base + iva
+
+        with col_val:
+            st.markdown(f"**Subtotal:** ${subtotal_final:,.0f}")
+            if aplica_descuento and descuento_pct > 0:
+                st.markdown(f"**Descuento ({descuento_pct}%):** -${monto_descuento:,.0f}")
+            if aplica_iva:
+                st.markdown(f"**IVA 16%:** ${iva:,.0f}")
+            st.markdown(f"### Total: ${total_final:,.0f}")
+            if subtotal_total > 0 and subtotal_total < MINIMO:
+                st.caption(f"⚠️ Mínimo de salida ${MINIMO:,}")
+
+        origen_input = st.selectbox("Origen", ORIGENES, index=0 if id_cliente_default else 1)
+
+        col1, col2 = st.columns(2)
         with col1:
             fecha = st.date_input("Fecha", datetime.now())
         with col2:
             hora = st.time_input("Hora", value=None)
-        with col3:
-            monto = st.number_input("Monto", min_value=0)
 
         submitted = st.form_submit_button("Agendar")
 
         if submitted:
             if not nombre.strip():
                 st.error("El nombre del cliente es obligatorio.")
+            elif not any(r["servicio"] for r in renglones):
+                st.error("Agrega al menos un servicio.")
             else:
                 conflicto = False
                 if hora:
@@ -1696,11 +1760,11 @@ elif pagina == "Agenda":
                         hora_str = hora.strftime("%H:%M") if hora else None
                         rango_nuevo = rango_hora(hora_str)
 
-                        servicio_completo = servicio
-                        if cantidad:
-                            servicio_completo = f"{cantidad} {servicio}"
-                        if paquete:
-                            servicio_completo += f", {paquete}"
+                        # Construir descripción para guardar
+                        renglones_validos = [r for r in renglones if r["servicio"]]
+                        servicio_str = " | ".join([f"{r['cantidad']} {r['servicio']} {r['paquete']}" for r in renglones_validos])
+                        import json
+                        renglones_json = json.dumps(renglones_validos, ensure_ascii=False)
 
                         client_auth.table("clientes").insert({
                             "empresa_id": st.session_state["empresa_id"],
@@ -1708,22 +1772,26 @@ elif pagina == "Agenda":
                             "nombre": nombre,
                             "tel": telefono,
                             "direccion": direccion,
-                            "servicio": servicio,
-                            "cantidad": cantidad,
-                            "paquete": paquete,
+                            "servicio": servicio_str,
+                            "cantidad": str(len(renglones_validos)),
+                            "paquete": renglones_validos[0]["paquete"] if renglones_validos else "",
                             "fecha": fecha.isoformat(),
-                            "monto": float(monto),
+                            "monto": float(total_final),
                             "origen": origen_input,
                             "año": fecha.year,
                             "realizado": False,
-                            "hora": hora_str
+                            "hora": hora_str,
+                            "comentarios": renglones_json
                         }).execute()
 
                         fecha_txt = fecha_relativa(fecha)
                         hora_txt = f" entre las {rango_nuevo}" if rango_nuevo else ""
-                        st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt}")
+                        st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt} — Total: ${total_final:,.0f}")
 
+                        # Generar hoja de servicio
                         try:
+                            # Preparar items para la hoja
+                            items_hoja = renglones_validos[:7]  # máximo 7 renglones en la hoja
                             pdf_bytes = generar_hoja_servicio(
                                 nombre=nombre,
                                 direccion=direccion,
@@ -1732,7 +1800,11 @@ elif pagina == "Agenda":
                                 hora=rango_nuevo,
                                 folio="",
                                 origen=origen_input,
-                                servicio=servicio_completo,
+                                items=items_hoja,
+                                subtotal=subtotal_final,
+                                descuento=monto_descuento,
+                                iva=iva,
+                                total=total_final,
                                 template_path="assets/Hoja de servicio de Maxi Clean.pdf"
                             )
                             st.download_button(
@@ -1784,8 +1856,6 @@ elif pagina == "Agenda":
         hora_ev = limpiar_valor(row.get("hora"))
         rango_ev = rango_hora(hora_ev)
         titulo = f"{'✅' if realizado else '⏳'} {limpiar_valor(row.get('Nombre'))} — {limpiar_valor(row.get('Servicio'))}"
-        if limpiar_valor(row.get("cantidad")):
-            titulo += f" ({limpiar_valor(row.get('cantidad'))})"
         if rango_ev:
             titulo += f" {rango_ev}"
         eventos.append({
@@ -1841,22 +1911,15 @@ elif pagina == "Agenda":
 
             col1, col2 = st.columns([3, 1])
             with col1:
-                servicio_detalle = limpiar_valor(row.get('Servicio'))
-                if limpiar_valor(row.get('cantidad')):
-                    servicio_detalle = f"{limpiar_valor(row.get('cantidad'))} {servicio_detalle}"
-                if limpiar_valor(row.get('paquete')):
-                    servicio_detalle += f" — {limpiar_valor(row.get('paquete'))}"
-
                 st.markdown(f"""
                 **👤 Cliente:** {limpiar_valor(row.get('Nombre'))}  
                 **🆔 ID:** {limpiar_valor(row.get('ID Cliente'))}  
                 **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
                 **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
-                **🧼 Servicio:** {servicio_detalle}  
+                **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
                 **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' entre las {rango_row}' if rango_row else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **🔍 Origen:** {limpiar_valor(row.get('Origen'))}  
-                **💬 Comentarios:** {limpiar_valor(row.get('Comentarios con llamada posterior a venta'))}  
                 **Estado:** {'✅ Realizado' if realizado else '⏳ Pendiente'}
                 """)
             with col2:
@@ -1880,14 +1943,24 @@ elif pagina == "Agenda":
 
             # ── HOJA DE SERVICIO ──
             try:
+                import json
                 id_cli = row.get("ID Cliente")
-                folio_ev = limpiar_valor(row.get("folio")) or (f"{int(id_cli)}/{str(int(row.get('Año', hoy.year)))[-2:]}" if id_cli and pd.notnull(id_cli) else "")
-                cantidad_ev = limpiar_valor(row.get("cantidad"))
-                paquete_ev = limpiar_valor(row.get("paquete"))
-                servicio_ev = limpiar_valor(row.get("Servicio"))
-                servicio_completo_ev = f"{cantidad_ev} {servicio_ev}" if cantidad_ev else servicio_ev
-                if paquete_ev:
-                    servicio_completo_ev += f", {paquete_ev}"
+                folio_ev = limpiar_valor(row.get("folio")) or ""
+                comentarios_raw = limpiar_valor(row.get("Comentarios con llamada posterior a venta"))
+
+                # Intentar parsear renglones guardados como JSON
+                try:
+                    items_ev = json.loads(comentarios_raw) if comentarios_raw and comentarios_raw.startswith("[") else None
+                except:
+                    items_ev = None
+
+                if items_ev:
+                    subtotal_ev = max(sum(r.get("subtotal", 0) for r in items_ev), MINIMO)
+                    total_ev = subtotal_ev
+                else:
+                    items_ev = [{"servicio": limpiar_valor(row.get("Servicio")), "cantidad": 1, "paquete": limpiar_valor(row.get("paquete")), "precio_unitario": 0, "subtotal": row.get("Monto", 0) or 0}]
+                    subtotal_ev = row.get("Monto", 0) or 0
+                    total_ev = subtotal_ev
 
                 pdf_bytes_ev = generar_hoja_servicio(
                     nombre=limpiar_valor(row.get("Nombre")),
@@ -1897,9 +1970,11 @@ elif pagina == "Agenda":
                     hora=rango_row,
                     folio=folio_ev,
                     origen=limpiar_valor(row.get("Origen")),
-                    servicio=servicio_ev,
-                    cantidad=cantidad_ev,
-                    paquete=paquete_ev,
+                    items=items_ev,
+                    subtotal=subtotal_ev,
+                    descuento=0,
+                    iva=0,
+                    total=total_ev,
                     template_path="assets/Hoja de servicio de Maxi Clean.pdf"
                 )
                 st.download_button(
@@ -1948,18 +2023,12 @@ elif pagina == "Agenda":
                             id_cli_limpio = int(id_cli) if id_cli and str(id_cli) not in ["", "nan", "None"] and pd.notnull(id_cli) else ""
 
                             es_rep = origen_real.lower() == "rep"
-
-                            comentario = limpiar_valor(row.get("Comentarios con llamada posterior a venta"), "").lower()
-                            cliente_no_contactar = any(p in comentario for p in [
+                            comentario_check = limpiar_valor(row.get("Comentarios con llamada posterior a venta"), "").lower()
+                            cliente_no_contactar = any(p in comentario_check for p in [
                                 "no se llama", "no contactar", "no vuelve", "cliente no deseable", "muy mal"
                             ])
 
-                            cant = limpiar_valor(row.get("cantidad"))
-                            paq = limpiar_valor(row.get("paquete"))
-                            serv = limpiar_valor(row.get("Servicio"))
-                            serv_sheets = f"{cant} {serv}" if cant else serv
-                            if paq:
-                                serv_sheets += f", {paq}"
+                            serv_sheets = limpiar_valor(row.get("Servicio"))
 
                             nueva_fila = [
                                 siguiente_folio,
@@ -1972,7 +2041,7 @@ elif pagina == "Agenda":
                                 origen_real,
                                 float(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0,
                                 serv_sheets,
-                                limpiar_valor(row.get("Comentarios con llamada posterior a venta")),
+                                "",
                                 "", "", ""
                             ]
 
@@ -1988,7 +2057,6 @@ elif pagina == "Agenda":
 
                             worksheet.insert_row(nueva_fila, primera_vacia)
 
-                            # Guardar folio en Supabase
                             client_auth.table("clientes").update({
                                 "folio": folio_interno
                             }).eq("id", id_click).execute()
@@ -2037,17 +2105,7 @@ elif pagina == "Agenda":
                 edit_nombre = st.text_input("Nombre", value=limpiar_valor(row.get("Nombre")))
                 edit_tel = st.text_input("Teléfono", value=limpiar_valor(row.get("Tel")))
                 edit_dir = st.text_input("Dirección", value=limpiar_valor(row.get("Dirección")))
-                col_e1, col_e2, col_e3 = st.columns([3, 1, 2])
-                with col_e1:
-                    edit_servicio = st.text_input("Servicio", value=limpiar_valor(row.get("Servicio")))
-                with col_e2:
-                    edit_cantidad = st.text_input("Cantidad", value=limpiar_valor(row.get("cantidad")))
-                with col_e3:
-                    paquete_actual = limpiar_valor(row.get("paquete"), "")
-                    edit_paquete = st.selectbox(
-                        "Paquete", PAQUETES,
-                        index=PAQUETES.index(paquete_actual) if paquete_actual in PAQUETES else 0
-                    )
+                edit_servicio = st.text_input("Servicio", value=limpiar_valor(row.get("Servicio")))
                 edit_monto = st.number_input(
                     "Monto", min_value=0,
                     value=int(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0
@@ -2062,20 +2120,15 @@ elif pagina == "Agenda":
                 if guardar_edicion:
                     try:
                         client_auth = get_supabase_auth()
-
-                        # Actualizar en Supabase
                         client_auth.table("clientes").update({
                             "nombre": edit_nombre,
                             "tel": edit_tel,
                             "direccion": edit_dir,
                             "servicio": edit_servicio,
-                            "cantidad": edit_cantidad,
-                            "paquete": edit_paquete,
                             "monto": float(edit_monto),
                             "origen": edit_origen
                         }).eq("id", id_click).execute()
 
-                        # Sincronizar con Sheets si tiene folio
                         folio_actual = limpiar_valor(row.get("folio"))
                         if folio_actual and realizado:
                             try:
@@ -2084,31 +2137,22 @@ elif pagina == "Agenda":
                                     client_gs = get_gspread_client()
                                     sh = client_gs.open_by_key(SHEET_IDS[año_row])
                                     worksheet = sh.get_worksheet(0)
-
-                                    # Buscar fila por folio interno (columna B)
                                     col_b = worksheet.col_values(2)
                                     fila_sheet = None
                                     for i, val in enumerate(col_b):
                                         if str(val).strip() == folio_actual:
                                             fila_sheet = i + 1
                                             break
-
                                     if fila_sheet:
-                                        serv_edit = f"{edit_cantidad} {edit_servicio}" if edit_cantidad else edit_servicio
-                                        if edit_paquete:
-                                            serv_edit += f", {edit_paquete}"
-
-                                        origen_edit = edit_origen if edit_origen not in ["agenda", ""] else "Int"
-
                                         worksheet.update(f"E{fila_sheet}", [[edit_nombre]])
                                         worksheet.update(f"F{fila_sheet}", [[edit_tel]])
                                         worksheet.update(f"G{fila_sheet}", [[edit_dir]])
-                                        worksheet.update(f"H{fila_sheet}", [[origen_edit]])
+                                        worksheet.update(f"H{fila_sheet}", [[edit_origen]])
                                         worksheet.update(f"I{fila_sheet}", [[float(edit_monto)]])
-                                        worksheet.update(f"J{fila_sheet}", [[serv_edit]])
-                                        st.success("✅ Servicio actualizado en Supabase y Sheets.")
+                                        worksheet.update(f"J{fila_sheet}", [[edit_servicio]])
+                                        st.success("✅ Actualizado en Supabase y Sheets.")
                                     else:
-                                        st.success("✅ Actualizado en Supabase. No se encontró la fila en Sheets.")
+                                        st.success("✅ Actualizado en Supabase.")
                             except Exception as e_sheet:
                                 st.warning(f"Actualizado en Supabase pero error en Sheets: {e_sheet}")
                         else:
