@@ -36,15 +36,15 @@ def generar_hoja_servicio(
 
     campos = [
         (580, 112, 760, 128, folio, 9),
-        (70, 173, 380, 188, nombre, 9),
-        (70, 210, 762, 225, direccion, 9),
-        (65, 272, 240, 287, "Zapopan, Jalisco", 9),
+        (32, 173, 380, 188, nombre, 9),
+        (32, 210, 762, 225, direccion, 9),
+        (32, 272, 240, 287, "Zapopan, Jalisco", 9),
         (310, 272, 510, 287, telefono, 9),
         (32, 342, 138, 356, fecha, 9),
         (142, 342, 248, 356, hora, 9),
         (295, 342, 530, 356, tecnico, 9),
         (594, 342, 762, 356, origen, 9),
-        (70, 572, 490, 586, servicio, 9),
+        (32, 572, 490, 586, servicio, 9),
     ]
 
     packet = io.BytesIO()
