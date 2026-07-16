@@ -1,5 +1,3 @@
-import json
-import os
 import io
 from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
@@ -14,7 +12,7 @@ def generar_hoja_servicio(
     folio="",
     origen="",
     servicio="",
-    tecnico="Alonso Peredo",
+    tecnico="",
     template_path="assets/Hoja de servicio de Maxi Clean.pdf"
 ):
     IMAGE_WIDTH = 772
@@ -37,24 +35,24 @@ def generar_hoja_servicio(
         return x0, y0, x1, y1
 
     campos = [
-        # Folio/Orden — esquina superior derecha
+        # Folio/Orden
         (580, 112, 760, 128, folio, 9),
         # Nombre
         (70, 173, 380, 188, nombre, 9),
         # Dirección
-        (70, 220, 762, 236, direccion, 9),
+        (70, 210, 762, 225, direccion, 9),
         # Ciudad fija
-        (10, 340, 185, 356, "Zapopan, Jalisco", 9),
+        (10, 272, 185, 287, "Zapopan, Jalisco", 9),
         # Teléfono
-        (210, 340, 430, 356, telefono, 9),
+        (210, 272, 430, 287, telefono, 9),
         # Fecha programada
-        (10, 418, 130, 434, fecha, 9),
+        (10, 332, 130, 347, fecha, 9),
         # Hora programada
-        (135, 418, 255, 434, hora, 9),
-        # Técnico
-        (260, 418, 490, 434, tecnico, 9),
+        (135, 332, 255, 347, hora, 9),
+        # Técnico — en blanco si no se pasa
+        (260, 332, 490, 347, tecnico, 9),
         # Medio/Fuente
-        (500, 418, 762, 434, origen, 9),
+        (500, 332, 762, 347, origen, 9),
     ]
 
     packet = io.BytesIO()
