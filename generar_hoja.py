@@ -36,6 +36,11 @@ def generar_hoja_servicio(
         y1 = pdf_height - (img_y * scale_y)
         return x0, y0, x1, y1
 
+    # Dividir servicio por coma si tiene más de uno
+    partes_servicio = [s.strip() for s in servicio.split(",", 1)] if "," in servicio else [servicio]
+    servicio_linea1 = partes_servicio[0]
+    servicio_linea2 = partes_servicio[1] if len(partes_servicio) > 1 else ""
+
     campos = [
         (580, 112, 760, 128, folio, 9),
         (70, 173, 380, 188, nombre, 9),
@@ -46,11 +51,17 @@ def generar_hoja_servicio(
         (142, 342, 248, 356, hora, 9),
         (295, 342, 530, 356, tecnico, 9),
         (594, 342, 762, 356, origen, 9),
-        # Descripción separada en sus columnas
-        (70, 572, 490, 586, servicio, 9),
-        (493, 572, 560, 586, paquete, 9),
-        (563, 572, 620, 586, cantidad, 9),
+        # Descripción línea 1
+        (70, 572, 490, 586, servicio_linea1, 9),
+        # Paquete — centrado bajo columna PAQUETE
+        (498, 572, 555, 586, paquete, 9),
+        # Cantidad — centrado bajo columna CANTIDAD
+        (558, 572, 610, 586, cantidad, 9),
     ]
+
+    # Si hay segunda línea de servicio
+    if servicio_linea2:
+        campos.append((70, 586, 490, 600, servicio_linea2, 9))
 
     packet = io.BytesIO()
     c = canvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
