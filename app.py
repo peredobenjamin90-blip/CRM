@@ -1696,7 +1696,6 @@ elif pagina == "Agenda":
                         hora_str = hora.strftime("%H:%M") if hora else None
                         rango_nuevo = rango_hora(hora_str)
 
-                        # Construir descripción completa para Sheets
                         servicio_completo = servicio
                         if cantidad:
                             servicio_completo = f"{cantidad} {servicio}"
@@ -1725,17 +1724,15 @@ elif pagina == "Agenda":
                         st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt}")
 
                         try:
-                            pdf_bytes_ev = generar_hoja_servicio(
-                                nombre=limpiar_valor(row.get("Nombre")),
-                                direccion=limpiar_valor(row.get("Dirección")),
-                                telefono=limpiar_valor(row.get("Tel")),
-                                fecha=fecha_row.strftime("%d/%m/%Y") if fecha_row else "",
-                                hora=rango_row,
-                                folio=folio_ev,
-                                origen=limpiar_valor(row.get("Origen")),
-                                servicio=servicio_ev,
-                                cantidad=cantidad_ev,
-                                paquete=paquete_ev,
+                            pdf_bytes = generar_hoja_servicio(
+                                nombre=nombre,
+                                direccion=direccion,
+                                telefono=telefono,
+                                fecha=fecha.strftime("%d/%m/%Y"),
+                                hora=rango_nuevo,
+                                folio="",
+                                origen=origen_input,
+                                servicio=servicio_completo,
                                 template_path="assets/Hoja de servicio de Maxi Clean.pdf"
                             )
                             st.download_button(
@@ -1884,7 +1881,7 @@ elif pagina == "Agenda":
             # ── HOJA DE SERVICIO ──
             try:
                 id_cli = row.get("ID Cliente")
-                folio_ev = f"{int(id_cli)}/{str(int(row.get('Año', hoy.year)))[-2:]}" if id_cli and pd.notnull(id_cli) else ""
+                folio_ev = limpiar_valor(row.get("folio")) or (f"{int(id_cli)}/{str(int(row.get('Año', hoy.year)))[-2:]}" if id_cli and pd.notnull(id_cli) else "")
                 cantidad_ev = limpiar_valor(row.get("cantidad"))
                 paquete_ev = limpiar_valor(row.get("paquete"))
                 servicio_ev = limpiar_valor(row.get("Servicio"))
@@ -1900,7 +1897,7 @@ elif pagina == "Agenda":
                     hora=rango_row,
                     folio=folio_ev,
                     origen=limpiar_valor(row.get("Origen")),
-                    servicio=servicio_completo_ev,
+                    servicio=servicio_ev,
                     cantidad=cantidad_ev,
                     paquete=paquete_ev,
                     template_path="assets/Hoja de servicio de Maxi Clean.pdf"
@@ -1957,7 +1954,6 @@ elif pagina == "Agenda":
                                 "no se llama", "no contactar", "no vuelve", "cliente no deseable", "muy mal"
                             ])
 
-                            # Servicio completo para Sheets
                             cant = limpiar_valor(row.get("cantidad"))
                             paq = limpiar_valor(row.get("paquete"))
                             serv = limpiar_valor(row.get("Servicio"))
@@ -1991,6 +1987,11 @@ elif pagina == "Agenda":
                                 primera_vacia = len(datos_col_c) + 2
 
                             worksheet.insert_row(nueva_fila, primera_vacia)
+
+                            # Guardar folio en Supabase
+                            client_auth.table("clientes").update({
+                                "folio": folio_interno
+                            }).eq("id", id_click).execute()
 
                             if cliente_no_contactar:
                                 worksheet.format(f"A{primera_vacia}", {
@@ -2061,6 +2062,8 @@ elif pagina == "Agenda":
                 if guardar_edicion:
                     try:
                         client_auth = get_supabase_auth()
+
+                        # Actualizar en Supabase
                         client_auth.table("clientes").update({
                             "nombre": edit_nombre,
                             "tel": edit_tel,
@@ -2072,7 +2075,45 @@ elif pagina == "Agenda":
                             "origen": edit_origen
                         }).eq("id", id_click).execute()
 
-                        st.success("✅ Servicio actualizado correctamente.")
+                        # Sincronizar con Sheets si tiene folio
+                        folio_actual = limpiar_valor(row.get("folio"))
+                        if folio_actual and realizado:
+                            try:
+                                año_row = int(row.get("Año", hoy.year))
+                                if año_row in SHEET_IDS:
+                                    client_gs = get_gspread_client()
+                                    sh = client_gs.open_by_key(SHEET_IDS[año_row])
+                                    worksheet = sh.get_worksheet(0)
+
+                                    # Buscar fila por folio interno (columna B)
+                                    col_b = worksheet.col_values(2)
+                                    fila_sheet = None
+                                    for i, val in enumerate(col_b):
+                                        if str(val).strip() == folio_actual:
+                                            fila_sheet = i + 1
+                                            break
+
+                                    if fila_sheet:
+                                        serv_edit = f"{edit_cantidad} {edit_servicio}" if edit_cantidad else edit_servicio
+                                        if edit_paquete:
+                                            serv_edit += f", {edit_paquete}"
+
+                                        origen_edit = edit_origen if edit_origen not in ["agenda", ""] else "Int"
+
+                                        worksheet.update(f"E{fila_sheet}", [[edit_nombre]])
+                                        worksheet.update(f"F{fila_sheet}", [[edit_tel]])
+                                        worksheet.update(f"G{fila_sheet}", [[edit_dir]])
+                                        worksheet.update(f"H{fila_sheet}", [[origen_edit]])
+                                        worksheet.update(f"I{fila_sheet}", [[float(edit_monto)]])
+                                        worksheet.update(f"J{fila_sheet}", [[serv_edit]])
+                                        st.success("✅ Servicio actualizado en Supabase y Sheets.")
+                                    else:
+                                        st.success("✅ Actualizado en Supabase. No se encontró la fila en Sheets.")
+                            except Exception as e_sheet:
+                                st.warning(f"Actualizado en Supabase pero error en Sheets: {e_sheet}")
+                        else:
+                            st.success("✅ Servicio actualizado correctamente.")
+
                         st.cache_data.clear()
                         del st.session_state["evento_seleccionado"]
                         st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
