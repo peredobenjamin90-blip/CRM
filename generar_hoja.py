@@ -35,25 +35,16 @@ def generar_hoja_servicio(
         return x0, y0, x1, y1
 
     campos = [
-        # Folio/Orden
         (580, 112, 760, 128, folio, 9),
-        # Nombre
         (70, 173, 380, 188, nombre, 9),
-        # Dirección
         (70, 210, 762, 225, direccion, 9),
-        # Ciudad fija — label termina en x=62
         (65, 272, 240, 287, "Zapopan, Jalisco", 9),
-        # Teléfono — label en x=270-307
         (310, 272, 510, 287, telefono, 9),
-        # Celular — label en x=510-546 (vacío por ahora)
-        # Fecha programada — label en x=32-120
         (32, 342, 138, 356, fecha, 9),
-        # Hora programada — label en x=142-226
         (142, 342, 248, 356, hora, 9),
-        # Técnico — label en x=249-295
         (295, 342, 530, 356, tecnico, 9),
-        # Medio/Fuente — label en x=532-594
         (594, 342, 762, 356, origen, 9),
+        (70, 572, 490, 586, servicio, 9),
     ]
 
     packet = io.BytesIO()

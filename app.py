@@ -1706,7 +1706,6 @@ elif pagina == "Agenda":
                         hora_txt = f" entre las {rango_nuevo}" if rango_nuevo else ""
                         st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt}")
 
-                        # ── HOJA DE SERVICIO AL AGENDAR ──
                         try:
                             pdf_bytes = generar_hoja_servicio(
                                 nombre=nombre,
@@ -1716,6 +1715,7 @@ elif pagina == "Agenda":
                                 hora=rango_nuevo,
                                 folio="",
                                 origen=origen_input,
+                                servicio=servicio,
                                 template_path="assets/Hoja de servicio de Maxi Clean.pdf"
                             )
                             st.download_button(
@@ -1726,7 +1726,7 @@ elif pagina == "Agenda":
                                 key="download_hoja_nueva"
                             )
                         except Exception as e_pdf:
-                            st.warning(f"No se pudo generar la hoja de servicio: {e_pdf}")
+                            st.warning(f"No se pudo generar la hoja: {e_pdf}")
 
                         st.cache_data.clear()
                         st.session_state.pop("forzar_agenda", None)
@@ -1853,7 +1853,7 @@ elif pagina == "Agenda":
                     url_sat = f"https://wa.me/{tel_ev_completo}?text={urllib.parse.quote(msg_sat)}"
                     st.link_button("💬 Enviar WhatsApp de satisfacción", url_sat)
 
-            # ── HOJA DE SERVICIO DESDE DETALLE ──
+            # ── HOJA DE SERVICIO ──
             try:
                 id_cli = row.get("ID Cliente")
                 folio_ev = f"{int(id_cli)}/{str(int(row.get('Año', hoy.year)))[-2:]}" if id_cli and pd.notnull(id_cli) else ""
@@ -1865,6 +1865,7 @@ elif pagina == "Agenda":
                     hora=rango_row,
                     folio=folio_ev,
                     origen=limpiar_valor(row.get("Origen")),
+                    servicio=limpiar_valor(row.get("Servicio")),
                     template_path="assets/Hoja de servicio de Maxi Clean.pdf"
                 )
                 st.download_button(
