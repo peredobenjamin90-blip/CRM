@@ -38,9 +38,9 @@ def generar_hoja_servicio(
         # Folio/Orden
         (580, 112, 760, 128, folio, 9),
         # Nombre
-        (70, 173, 380, 188, nombre, 9),
+        (85, 173, 380, 188, nombre, 9),
         # Dirección
-        (70, 210, 762, 225, direccion, 9),
+        (85, 210, 762, 225, direccion, 9),
         # Ciudad fija — label termina en x=62
         (65, 272, 240, 287, "Zapopan, Jalisco", 9),
         # Teléfono — label en x=270-307
