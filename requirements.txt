@@ -7,3 +7,5 @@ plotly
 streamlit-calendar
 Pillow
 supabase
+pypdf
+reportlab
