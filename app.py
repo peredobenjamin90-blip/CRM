@@ -1725,15 +1725,17 @@ elif pagina == "Agenda":
                         st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt}")
 
                         try:
-                            pdf_bytes = generar_hoja_servicio(
-                                nombre=nombre,
-                                direccion=direccion,
-                                telefono=telefono,
-                                fecha=fecha.strftime("%d/%m/%Y"),
-                                hora=rango_nuevo,
-                                folio="",
-                                origen=origen_input,
-                                servicio=servicio_completo,
+                            pdf_bytes_ev = generar_hoja_servicio(
+                                nombre=limpiar_valor(row.get("Nombre")),
+                                direccion=limpiar_valor(row.get("Dirección")),
+                                telefono=limpiar_valor(row.get("Tel")),
+                                fecha=fecha_row.strftime("%d/%m/%Y") if fecha_row else "",
+                                hora=rango_row,
+                                folio=folio_ev,
+                                origen=limpiar_valor(row.get("Origen")),
+                                servicio=servicio_ev,
+                                cantidad=cantidad_ev,
+                                paquete=paquete_ev,
                                 template_path="assets/Hoja de servicio de Maxi Clean.pdf"
                             )
                             st.download_button(
