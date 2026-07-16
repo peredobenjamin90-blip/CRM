@@ -1,0 +1,81 @@
+import json
+import os
+import io
+from pypdf import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+
+
+def generar_hoja_servicio(
+    nombre="",
+    direccion="",
+    telefono="",
+    fecha="",
+    hora="",
+    folio="",
+    origen="",
+    servicio="",
+    tecnico="Alonso Peredo",
+    template_path="assets/Hoja de servicio de Maxi Clean.pdf"
+):
+    IMAGE_WIDTH = 772
+    IMAGE_HEIGHT = 1000
+
+    reader = PdfReader(template_path)
+    page = reader.pages[0]
+
+    pdf_width = float(page.mediabox.width)
+    pdf_height = float(page.mediabox.height)
+
+    scale_x = pdf_width / IMAGE_WIDTH
+    scale_y = pdf_height / IMAGE_HEIGHT
+
+    def to_pdf_coords(img_x, img_y, img_x2, img_y2):
+        x0 = img_x * scale_x
+        y0 = pdf_height - (img_y2 * scale_y)
+        x1 = img_x2 * scale_x
+        y1 = pdf_height - (img_y * scale_y)
+        return x0, y0, x1, y1
+
+    campos = [
+        (580, 112, 760, 128, folio, 9),
+        (70, 168, 380, 184, nombre, 9),
+        (70, 216, 762, 232, direccion, 9),
+        (55, 312, 200, 328, "Zapopan, Jalisco", 9),
+        (270, 312, 430, 328, telefono, 9),
+        (10, 410, 130, 426, fecha, 9),
+        (140, 410, 250, 426, hora, 9),
+        (260, 410, 490, 426, tecnico, 9),
+        (500, 410, 762, 426, origen, 9),
+    ]
+
+    packet = io.BytesIO()
+    c = canvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
+    c.setFont("Helvetica", 9)
+    c.setFillColorRGB(0, 0, 0)
+
+    for (ix, iy, ix2, iy2, texto, fsize) in campos:
+        if not texto:
+            continue
+        x0, y0, x1, y1 = to_pdf_coords(ix, iy, ix2, iy2)
+        cy = y0 + (y1 - y0) / 2 - fsize / 3
+        c.setFont("Helvetica", fsize)
+        c.drawString(x0 + 2, cy, str(texto))
+
+    c.save()
+    packet.seek(0)
+
+    overlay_reader = PdfReader(packet)
+    overlay_page = overlay_reader.pages[0]
+
+    writer = PdfWriter()
+    page.merge_page(overlay_page)
+    writer.add_page(page)
+
+    if len(reader.pages) > 1:
+        writer.add_page(reader.pages[1])
+
+    output = io.BytesIO()
+    writer.write(output)
+    output.seek(0)
+    return output.read()

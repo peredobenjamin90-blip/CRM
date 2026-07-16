@@ -8,6 +8,7 @@ import uuid
 import plotly.express as px
 import os
 
+from generar_hoja import generar_hoja_servicio
 from supabase import create_client
 supabase = create_client(
     st.secrets["SUPABASE_URL"],
@@ -1704,6 +1705,29 @@ elif pagina == "Agenda":
                         fecha_txt = fecha_relativa(fecha)
                         hora_txt = f" entre las {rango_nuevo}" if rango_nuevo else ""
                         st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt}")
+
+                        # ── HOJA DE SERVICIO AL AGENDAR ──
+                        try:
+                            pdf_bytes = generar_hoja_servicio(
+                                nombre=nombre,
+                                direccion=direccion,
+                                telefono=telefono,
+                                fecha=fecha.strftime("%d/%m/%Y"),
+                                hora=rango_nuevo,
+                                folio="",
+                                origen=origen_input,
+                                template_path="assets/Hoja de servicio de Maxi Clean.pdf"
+                            )
+                            st.download_button(
+                                "📄 Descargar hoja de servicio",
+                                data=pdf_bytes,
+                                file_name=f"hoja_{nombre.replace(' ','_')}_{fecha.strftime('%d%m%Y')}.pdf",
+                                mime="application/pdf",
+                                key="download_hoja_nueva"
+                            )
+                        except Exception as e_pdf:
+                            st.warning(f"No se pudo generar la hoja de servicio: {e_pdf}")
+
                         st.cache_data.clear()
                         st.session_state.pop("forzar_agenda", None)
                         for k in ["agenda_cliente_id", "agenda_cliente_nombre", "agenda_cliente_tel", "agenda_cliente_dir"]:
@@ -1724,10 +1748,10 @@ elif pagina == "Agenda":
             st.rerun()
 
     st.markdown("---")
-    st.info("📅 Calendario temporalmente deshabilitado para diagnóstico.")
 
-    # ── CALENDARIO ──
     from streamlit_calendar import calendar
+
+    st.markdown("### 📅 Calendario de servicios")
 
     hoy = datetime.now()
     df_cal = df_a[
@@ -1739,7 +1763,7 @@ elif pagina == "Agenda":
     eventos = []
     for _, row in df_cal.iterrows():
         realizado = row.get("realizado", False)
-        color = "#2B5BAA" if realizado else "#F59E0B"
+        color = "#4F6AF0" if realizado else "#F59E0B"
         hora_ev = limpiar_valor(row.get("hora"))
         rango_ev = rango_hora(hora_ev)
         titulo = f"{'✅' if realizado else '⏳'} {limpiar_valor(row.get('Nombre'))} — {limpiar_valor(row.get('Servicio'))}"
@@ -1825,9 +1849,33 @@ elif pagina == "Agenda":
                     url_confirmacion = f"https://wa.me/{tel_ev_completo}?text={urllib.parse.quote(mensaje_confirmacion)}"
                     st.markdown(f"[💬 Enviar recordatorio]({url_confirmacion})")
                 else:
-                    msg_sat = f"Hola {limpiar_valor(row.get('Nombre'))}, gracias por confiar en {empresa} ¿Cómo quedó tu servicio? Tu opinión nos ayuda a mejorar."
+                    msg_sat = f"Hola {limpiar_valor(row.get('Nombre'))}, gracias por confiar en {empresa} 😊 ¿Cómo quedó tu servicio? Tu opinión nos ayuda a mejorar."
                     url_sat = f"https://wa.me/{tel_ev_completo}?text={urllib.parse.quote(msg_sat)}"
                     st.link_button("💬 Enviar WhatsApp de satisfacción", url_sat)
+
+            # ── HOJA DE SERVICIO DESDE DETALLE ──
+            try:
+                id_cli = row.get("ID Cliente")
+                folio_ev = f"{int(id_cli)}/{str(int(row.get('Año', hoy.year)))[-2:]}" if id_cli and pd.notnull(id_cli) else ""
+                pdf_bytes_ev = generar_hoja_servicio(
+                    nombre=limpiar_valor(row.get("Nombre")),
+                    direccion=limpiar_valor(row.get("Dirección")),
+                    telefono=limpiar_valor(row.get("Tel")),
+                    fecha=fecha_row.strftime("%d/%m/%Y") if fecha_row else "",
+                    hora=rango_row,
+                    folio=folio_ev,
+                    origen=limpiar_valor(row.get("Origen")),
+                    template_path="assets/Hoja de servicio de Maxi Clean.pdf"
+                )
+                st.download_button(
+                    "📄 Descargar hoja de servicio",
+                    data=pdf_bytes_ev,
+                    file_name=f"hoja_{limpiar_valor(row.get('Nombre','cliente')).replace(' ','_')}.pdf",
+                    mime="application/pdf",
+                    key=f"download_hoja_{id_click}"
+                )
+            except Exception as e_pdf:
+                st.warning(f"No se pudo generar la hoja: {e_pdf}")
 
             if not realizado:
                 if st.button("✅ Marcar como realizado y guardar en Sheets", use_container_width=True, type="primary"):
@@ -1908,14 +1956,11 @@ elif pagina == "Agenda":
                                 })
 
                             st.success("✅ Servicio marcado como realizado y guardado en Sheets.")
-
-                            # Guardar para WhatsApp de satisfacción
                             st.session_state["whatsapp_satisfaccion"] = {
                                 "nombre": limpiar_valor(row.get("Nombre")),
                                 "tel": tel_ev,
                                 "empresa": empresa
                             }
-
                         else:
                             st.success("✅ Marcado como realizado. No hay sheet configurado para este año.")
 
@@ -1931,7 +1976,6 @@ elif pagina == "Agenda":
             else:
                 st.success("✅ Este servicio ya fue realizado y guardado en Sheets.")
 
-            # ── WHATSAPP DE SATISFACCIÓN ──
             if st.session_state.get("whatsapp_satisfaccion"):
                 datos_ws = st.session_state["whatsapp_satisfaccion"]
                 tel_ws = str(datos_ws["tel"]).replace("-", "").replace(" ", "")
