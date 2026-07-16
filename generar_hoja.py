@@ -53,15 +53,15 @@ def generar_hoja_servicio(
         (594, 342, 762, 356, origen, 9),
         # Descripción línea 1
         (70, 572, 490, 586, servicio_linea1, 9),
-        # Paquete — centrado bajo columna PAQUETE
-        (498, 572, 555, 586, paquete, 9),
-        # Cantidad — centrado bajo columna CANTIDAD
-        (558, 572, 610, 586, cantidad, 9),
+        # Paquete — bajo columna PAQUETE
+        (455, 572, 520, 586, paquete, 9),
+        # Cantidad — bajo columna CANTIDAD
+        (522, 572, 575, 586, cantidad, 9),
     ]
 
-    # Si hay segunda línea de servicio
+    # Si hay segunda línea de servicio — más espacio
     if servicio_linea2:
-        campos.append((70, 586, 490, 600, servicio_linea2, 9))
+        campos.append((70, 590, 490, 604, servicio_linea2, 9))
 
     packet = io.BytesIO()
     c = canvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
