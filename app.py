@@ -1463,12 +1463,13 @@ elif pagina == "Chat":
 elif pagina == "Agenda":
     st.title("📅 Agenda de Servicios")
     import urllib.parse
+    import json
     from datetime import datetime, timedelta
 
     SHEET_IDS = USUARIOS[st.session_state["usuario"]].get("sheets", {})
     cotizador = USUARIOS[st.session_state["usuario"]].get("cotizador", {})
     PRECIOS = cotizador.get("precios", {})
-    PAQUETES_COT = cotizador.get("paquetes", ["Sencillo", "Ecológico", "Protector", "Premium"])
+    PAQUETES_COT = cotizador.get("paquetes", ["Sencillo", "Ecológico", "Protección", "Premium"])
     MINIMO = 950
 
     def get_supabase_auth():
@@ -1514,10 +1515,10 @@ elif pagina == "Agenda":
         except:
             return str(hora_str)
 
-    def precio_unitario(servicio, paquete, cantidad=1):
+    def get_precio(servicio, paquete, cantidad=1):
         try:
-            precio = PRECIOS.get(servicio, {}).get(paquete, 0)
-            return precio * cantidad
+            p = PRECIOS.get(servicio, {}).get(paquete, 0)
+            return p * cantidad
         except:
             return 0
 
@@ -1641,196 +1642,201 @@ elif pagina == "Agenda":
     SERVICIOS_LISTA = [""] + list(PRECIOS.keys())
     N_RENGLONES = 8
 
-    with st.form(f"agendar_servicio_{st.session_state['form_key']}"):
-        nombre = st.text_input("Nombre del cliente", value=nombre_default)
-        telefono = st.text_input("Teléfono(s)", value=tel_default)
-        direccion = st.text_input("Dirección", value=dir_default)
+    # ── CAMPOS FUERA DEL FORM PARA TIEMPO REAL ──
+    nombre = st.text_input("Nombre del cliente", value=nombre_default, key=f"nombre_{st.session_state['form_key']}")
+    telefono = st.text_input("Teléfono(s)", value=tel_default, key=f"tel_{st.session_state['form_key']}")
+    direccion = st.text_input("Dirección", value=dir_default, key=f"dir_{st.session_state['form_key']}")
 
-        st.markdown("**🧼 Servicios**")
-        st.caption("Selecciona hasta 8 servicios — el precio se calcula automáticamente")
+    st.markdown("**🧼 Servicios**")
+    st.caption("El precio se calcula automáticamente")
 
-        # Headers
-        h1, h2, h3, h4, h5 = st.columns([4, 1, 2, 2, 2])
-        h1.markdown("**Servicio**")
-        h2.markdown("**Cant.**")
-        h3.markdown("**Paquete**")
-        h4.markdown("**P. Unitario**")
-        h5.markdown("**Subtotal**")
+    h1, h2, h3, h4, h5 = st.columns([4, 1, 2, 2, 2])
+    h1.markdown("**Servicio**")
+    h2.markdown("**Cant.**")
+    h3.markdown("**Paquete**")
+    h4.markdown("**P. Unit.**")
+    h5.markdown("**Subtotal**")
 
-        renglones = []
-        for i in range(N_RENGLONES):
-            c1, c2, c3, c4, c5 = st.columns([4, 1, 2, 2, 2])
-            with c1:
-                serv_i = st.selectbox(f"s{i}", SERVICIOS_LISTA, label_visibility="collapsed", key=f"serv_{i}_{st.session_state['form_key']}")
-            with c2:
-                cant_i = st.number_input(f"c{i}", min_value=0, value=0, label_visibility="collapsed", key=f"cant_{i}_{st.session_state['form_key']}")
-            with c3:
-                paq_i = st.selectbox(f"p{i}", PAQUETES, label_visibility="collapsed", key=f"paq_{i}_{st.session_state['form_key']}")
-            with c4:
-                p_unit = precio_unitario(serv_i, paq_i, 1) if serv_i and paq_i else 0
-                st.markdown(f"${p_unit:,.0f}" if p_unit else "—")
-            with c5:
-                subtotal_i = precio_unitario(serv_i, paq_i, cant_i) if serv_i and paq_i and cant_i > 0 else 0
-                st.markdown(f"${subtotal_i:,.0f}" if subtotal_i else "—")
+    renglones = []
+    for i in range(N_RENGLONES):
+        c1, c2, c3, c4, c5 = st.columns([4, 1, 2, 2, 2])
+        with c1:
+            serv_i = st.selectbox(
+                f"s{i}", SERVICIOS_LISTA,
+                label_visibility="collapsed",
+                key=f"serv_{i}_{st.session_state['form_key']}"
+            )
+        with c2:
+            cant_i = st.number_input(
+                f"c{i}", min_value=0, value=0,
+                label_visibility="collapsed",
+                key=f"cant_{i}_{st.session_state['form_key']}"
+            )
+        with c3:
+            paq_i = st.selectbox(
+                f"p{i}", PAQUETES,
+                label_visibility="collapsed",
+                key=f"paq_{i}_{st.session_state['form_key']}"
+            )
+        p_unit = get_precio(serv_i, paq_i, 1) if serv_i and paq_i else 0
+        subtotal_i = get_precio(serv_i, paq_i, int(cant_i)) if serv_i and paq_i and cant_i > 0 else 0
+        with c4:
+            st.markdown(f"**${p_unit:,.0f}**" if p_unit else "—")
+        with c5:
+            st.markdown(f"**${subtotal_i:,.0f}**" if subtotal_i else "—")
 
-            if serv_i:
-                renglones.append({
-                    "servicio": serv_i,
-                    "cantidad": int(cant_i),
-                    "paquete": paq_i,
-                    "precio_unitario": p_unit,
-                    "subtotal": subtotal_i
-                })
+        if serv_i:
+            renglones.append({
+                "servicio": serv_i,
+                "cantidad": int(cant_i),
+                "paquete": paq_i,
+                "precio_unitario": p_unit,
+                "subtotal": subtotal_i
+            })
 
-        # Totales
-        st.markdown("---")
-        subtotal_total = sum(r["subtotal"] for r in renglones)
-        subtotal_final = max(subtotal_total, MINIMO) if subtotal_total > 0 else 0
+    # ── TOTALES EN TIEMPO REAL ──
+    st.markdown("---")
+    subtotal_total = sum(r["subtotal"] for r in renglones)
+    subtotal_final = max(subtotal_total, MINIMO) if subtotal_total > 0 else 0
 
-        col_desc, col_val = st.columns([3, 1])
-        with col_desc:
-            aplica_descuento = st.checkbox("Aplicar descuento")
-            descuento_pct = st.number_input("Descuento (%)", min_value=0, max_value=100, value=0) if aplica_descuento else 0
-            aplica_iva = st.checkbox("Aplicar IVA 16% (cliente pide factura)")
+    col_opciones, col_totales = st.columns([2, 1])
+    with col_opciones:
+        aplica_descuento = st.checkbox("Aplicar descuento", key=f"desc_{st.session_state['form_key']}")
+        descuento_pct = st.number_input("Descuento (%)", min_value=0, max_value=100, value=0, key=f"desc_pct_{st.session_state['form_key']}") if aplica_descuento else 0
+        aplica_iva = st.checkbox("Aplicar IVA 16% (factura)", key=f"iva_{st.session_state['form_key']}")
 
-        monto_descuento = subtotal_final * descuento_pct / 100
-        base = subtotal_final - monto_descuento
-        iva = base * 0.16 if aplica_iva else 0
-        total_final = base + iva
+    monto_descuento = subtotal_final * descuento_pct / 100
+    base = subtotal_final - monto_descuento
+    iva = base * 0.16 if aplica_iva else 0
+    total_final = base + iva
 
-        with col_val:
+    with col_totales:
+        if subtotal_final > 0:
             st.markdown(f"**Subtotal:** ${subtotal_final:,.0f}")
+            if subtotal_total > 0 and subtotal_total < MINIMO:
+                st.caption(f"⚠️ Mínimo ${MINIMO:,}")
             if aplica_descuento and descuento_pct > 0:
                 st.markdown(f"**Descuento ({descuento_pct}%):** -${monto_descuento:,.0f}")
             if aplica_iva:
                 st.markdown(f"**IVA 16%:** ${iva:,.0f}")
-            st.markdown(f"### Total: ${total_final:,.0f}")
-            if subtotal_total > 0 and subtotal_total < MINIMO:
-                st.caption(f"⚠️ Mínimo de salida ${MINIMO:,}")
+            st.markdown(f"### 💰 Total: ${total_final:,.0f}")
 
-        origen_input = st.selectbox("Origen", ORIGENES, index=0 if id_cliente_default else 1)
+    # ── DATOS ADICIONALES + BOTÓN ──
+    origen_input = st.selectbox("Origen", ORIGENES, index=0 if id_cliente_default else 1, key=f"origen_{st.session_state['form_key']}")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            fecha = st.date_input("Fecha", datetime.now())
-        with col2:
-            hora = st.time_input("Hora", value=None)
+    col1, col2 = st.columns(2)
+    with col1:
+        fecha = st.date_input("Fecha", datetime.now(), key=f"fecha_{st.session_state['form_key']}")
+    with col2:
+        hora = st.time_input("Hora", value=None, key=f"hora_{st.session_state['form_key']}")
 
-        submitted = st.form_submit_button("Agendar")
+    if st.button("✅ Agendar", use_container_width=True, type="primary", key=f"btn_agendar_{st.session_state['form_key']}"):
+        if not nombre.strip():
+            st.error("El nombre del cliente es obligatorio.")
+        elif not any(r["servicio"] for r in renglones):
+            st.error("Agrega al menos un servicio.")
+        else:
+            conflicto = False
+            if hora:
+                hora_str_nueva = hora.strftime("%H:%M")
+                df_conflicto = df_a[
+                    (df_a["Fecha"].dt.date == fecha) &
+                    (df_a["hora"] == hora_str_nueva) &
+                    (df_a["realizado"] == False)
+                ]
+                if not df_conflicto.empty:
+                    conflicto = True
+                    nombres_conflicto = ", ".join(df_conflicto["Nombre"].dropna().tolist())
+                    st.warning(f"⚠️ Ya hay un servicio a las {hora_str_nueva} el {fecha.strftime('%d/%m/%Y')} — {nombres_conflicto}.")
 
-        if submitted:
-            if not nombre.strip():
-                st.error("El nombre del cliente es obligatorio.")
-            elif not any(r["servicio"] for r in renglones):
-                st.error("Agrega al menos un servicio.")
-            else:
-                conflicto = False
-                if hora:
-                    hora_str_nueva = hora.strftime("%H:%M")
-                    df_conflicto = df_a[
-                        (df_a["Fecha"].dt.date == fecha) &
-                        (df_a["hora"] == hora_str_nueva) &
-                        (df_a["realizado"] == False)
-                    ]
-                    if not df_conflicto.empty:
-                        conflicto = True
-                        nombres_conflicto = ", ".join(df_conflicto["Nombre"].dropna().tolist())
-                        st.warning(f"⚠️ Ya hay un servicio a las {hora_str_nueva} el {fecha.strftime('%d/%m/%Y')} — {nombres_conflicto}.")
+            if not conflicto or st.session_state.get("forzar_agenda", False):
+                try:
+                    client_auth = get_supabase_auth()
 
-                if not conflicto or st.session_state.get("forzar_agenda", False):
-                    try:
-                        client_auth = get_supabase_auth()
-
-                        id_cliente = None
-                        if id_cliente_default and str(id_cliente_default) not in ["", "nan", "None"]:
-                            id_cliente = int(id_cliente_default)
+                    id_cliente = None
+                    if id_cliente_default and str(id_cliente_default) not in ["", "nan", "None"]:
+                        id_cliente = int(id_cliente_default)
+                    else:
+                        max_id_resp = client_auth.table("clientes")\
+                            .select("cliente_id")\
+                            .eq("empresa_id", st.session_state["empresa_id"])\
+                            .not_.is_("cliente_id", "null")\
+                            .order("cliente_id", desc=True)\
+                            .limit(1)\
+                            .execute()
+                        if max_id_resp.data and max_id_resp.data[0]["cliente_id"]:
+                            id_cliente = int(max_id_resp.data[0]["cliente_id"]) + 1
                         else:
-                            max_id_resp = client_auth.table("clientes")\
-                                .select("cliente_id")\
-                                .eq("empresa_id", st.session_state["empresa_id"])\
-                                .not_.is_("cliente_id", "null")\
-                                .order("cliente_id", desc=True)\
-                                .limit(1)\
-                                .execute()
-                            if max_id_resp.data and max_id_resp.data[0]["cliente_id"]:
-                                id_cliente = int(max_id_resp.data[0]["cliente_id"]) + 1
-                            else:
-                                id_cliente = 1
+                            id_cliente = 1
 
-                        hora_str = hora.strftime("%H:%M") if hora else None
-                        rango_nuevo = rango_hora(hora_str)
+                    hora_str = hora.strftime("%H:%M") if hora else None
+                    rango_nuevo = rango_hora(hora_str)
+                    renglones_validos = [r for r in renglones if r["servicio"]]
+                    servicio_str = " | ".join([f"{r['cantidad']} {r['servicio']} {r['paquete']}" for r in renglones_validos])
+                    renglones_json = json.dumps(renglones_validos, ensure_ascii=False)
 
-                        # Construir descripción para guardar
-                        renglones_validos = [r for r in renglones if r["servicio"]]
-                        servicio_str = " | ".join([f"{r['cantidad']} {r['servicio']} {r['paquete']}" for r in renglones_validos])
-                        import json
-                        renglones_json = json.dumps(renglones_validos, ensure_ascii=False)
+                    client_auth.table("clientes").insert({
+                        "empresa_id": st.session_state["empresa_id"],
+                        "cliente_id": id_cliente,
+                        "nombre": nombre,
+                        "tel": telefono,
+                        "direccion": direccion,
+                        "servicio": servicio_str,
+                        "cantidad": str(len(renglones_validos)),
+                        "paquete": renglones_validos[0]["paquete"] if renglones_validos else "",
+                        "fecha": fecha.isoformat(),
+                        "monto": float(total_final),
+                        "origen": origen_input,
+                        "año": fecha.year,
+                        "realizado": False,
+                        "hora": hora_str,
+                        "comentarios": renglones_json
+                    }).execute()
 
-                        client_auth.table("clientes").insert({
-                            "empresa_id": st.session_state["empresa_id"],
-                            "cliente_id": id_cliente,
-                            "nombre": nombre,
-                            "tel": telefono,
-                            "direccion": direccion,
-                            "servicio": servicio_str,
-                            "cantidad": str(len(renglones_validos)),
-                            "paquete": renglones_validos[0]["paquete"] if renglones_validos else "",
-                            "fecha": fecha.isoformat(),
-                            "monto": float(total_final),
-                            "origen": origen_input,
-                            "año": fecha.year,
-                            "realizado": False,
-                            "hora": hora_str,
-                            "comentarios": renglones_json
-                        }).execute()
+                    fecha_txt = fecha_relativa(fecha)
+                    hora_txt = f" entre las {rango_nuevo}" if rango_nuevo else ""
+                    st.success(f"✅ Agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt} — Total: ${total_final:,.0f}")
 
-                        fecha_txt = fecha_relativa(fecha)
-                        hora_txt = f" entre las {rango_nuevo}" if rango_nuevo else ""
-                        st.success(f"✅ Servicio agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt} — Total: ${total_final:,.0f}")
+                    try:
+                        pdf_bytes = generar_hoja_servicio(
+                            nombre=nombre,
+                            direccion=direccion,
+                            telefono=telefono,
+                            fecha=fecha.strftime("%d/%m/%Y"),
+                            hora=rango_nuevo,
+                            folio="",
+                            origen=origen_input,
+                            items=renglones_validos,
+                            subtotal=subtotal_final,
+                            descuento=monto_descuento,
+                            iva=iva,
+                            total=total_final,
+                            template_path="assets/Hoja de servicio de Maxi Clean.pdf"
+                        )
+                        st.download_button(
+                            "📄 Descargar hoja de servicio",
+                            data=pdf_bytes,
+                            file_name=f"hoja_{nombre.replace(' ','_')}_{fecha.strftime('%d%m%Y')}.pdf",
+                            mime="application/pdf",
+                            key="download_hoja_nueva"
+                        )
+                    except Exception as e_pdf:
+                        st.warning(f"No se pudo generar la hoja: {e_pdf}")
 
-                        # Generar hoja de servicio
-                        try:
-                            # Preparar items para la hoja
-                            items_hoja = renglones_validos[:7]  # máximo 7 renglones en la hoja
-                            pdf_bytes = generar_hoja_servicio(
-                                nombre=nombre,
-                                direccion=direccion,
-                                telefono=telefono,
-                                fecha=fecha.strftime("%d/%m/%Y"),
-                                hora=rango_nuevo,
-                                folio="",
-                                origen=origen_input,
-                                items=items_hoja,
-                                subtotal=subtotal_final,
-                                descuento=monto_descuento,
-                                iva=iva,
-                                total=total_final,
-                                template_path="assets/Hoja de servicio de Maxi Clean.pdf"
-                            )
-                            st.download_button(
-                                "📄 Descargar hoja de servicio",
-                                data=pdf_bytes,
-                                file_name=f"hoja_{nombre.replace(' ','_')}_{fecha.strftime('%d%m%Y')}.pdf",
-                                mime="application/pdf",
-                                key="download_hoja_nueva"
-                            )
-                        except Exception as e_pdf:
-                            st.warning(f"No se pudo generar la hoja: {e_pdf}")
+                    st.cache_data.clear()
+                    st.session_state.pop("forzar_agenda", None)
+                    for k in ["agenda_cliente_id", "agenda_cliente_nombre", "agenda_cliente_tel", "agenda_cliente_dir"]:
+                        st.session_state.pop(k, None)
+                    if "evento_seleccionado" in st.session_state:
+                        del st.session_state["evento_seleccionado"]
+                    import time as t
+                    t.sleep(1)
+                    st.rerun()
 
-                        st.cache_data.clear()
-                        st.session_state.pop("forzar_agenda", None)
-                        for k in ["agenda_cliente_id", "agenda_cliente_nombre", "agenda_cliente_tel", "agenda_cliente_dir"]:
-                            st.session_state.pop(k, None)
-                        if "evento_seleccionado" in st.session_state:
-                            del st.session_state["evento_seleccionado"]
-                        import time as t
-                        t.sleep(1)
-                        st.rerun()
-
-                    except Exception as e:
-                        st.error(f"Error al agendar: {e}")
-                else:
-                    st.session_state["forzar_agenda"] = True
+                except Exception as e:
+                    st.error(f"Error al agendar: {e}")
+            else:
+                st.session_state["forzar_agenda"] = True
 
     if st.session_state.get("forzar_agenda", False):
         if st.button("⚠️ Agendar de todas formas", use_container_width=True):
@@ -1864,9 +1870,7 @@ elif pagina == "Agenda":
             "end": row["Fecha"].strftime("%Y-%m-%d"),
             "backgroundColor": color,
             "borderColor": color,
-            "extendedProps": {
-                "id": str(row.get("id", "")),
-            }
+            "extendedProps": {"id": str(row.get("id", ""))},
         })
 
     opciones_calendario = {
@@ -1895,7 +1899,6 @@ elif pagina == "Agenda":
     if "evento_seleccionado" in st.session_state:
         ev = st.session_state["evento_seleccionado"]
         id_click = ev["id"]
-
         df_evento = df_cal[df_cal["id"].astype(str) == str(id_click)]
 
         if not df_evento.empty:
@@ -1943,12 +1946,8 @@ elif pagina == "Agenda":
 
             # ── HOJA DE SERVICIO ──
             try:
-                import json
-                id_cli = row.get("ID Cliente")
                 folio_ev = limpiar_valor(row.get("folio")) or ""
                 comentarios_raw = limpiar_valor(row.get("Comentarios con llamada posterior a venta"))
-
-                # Intentar parsear renglones guardados como JSON
                 try:
                     items_ev = json.loads(comentarios_raw) if comentarios_raw and comentarios_raw.startswith("[") else None
                 except:
@@ -1958,7 +1957,7 @@ elif pagina == "Agenda":
                     subtotal_ev = max(sum(r.get("subtotal", 0) for r in items_ev), MINIMO)
                     total_ev = subtotal_ev
                 else:
-                    items_ev = [{"servicio": limpiar_valor(row.get("Servicio")), "cantidad": 1, "paquete": limpiar_valor(row.get("paquete")), "precio_unitario": 0, "subtotal": row.get("Monto", 0) or 0}]
+                    items_ev = [{"servicio": limpiar_valor(row.get("Servicio")), "cantidad": 1, "paquete": "", "precio_unitario": 0, "subtotal": row.get("Monto", 0) or 0}]
                     subtotal_ev = row.get("Monto", 0) or 0
                     total_ev = subtotal_ev
 
@@ -1991,15 +1990,12 @@ elif pagina == "Agenda":
                 if st.button("✅ Marcar como realizado y guardar en Sheets", use_container_width=True, type="primary"):
                     try:
                         client_auth = get_supabase_auth()
-                        client_auth.table("clientes").update({
-                            "realizado": True
-                        }).eq("id", id_click).execute()
+                        client_auth.table("clientes").update({"realizado": True}).eq("id", id_click).execute()
 
                         año_row = int(row.get("Año", row["Fecha"].year))
                         if año_row in SHEET_IDS:
                             client_gs = get_gspread_client()
-                            sheet_id = SHEET_IDS[año_row]
-                            sh = client_gs.open_by_key(sheet_id)
+                            sh = client_gs.open_by_key(SHEET_IDS[año_row])
                             worksheet = sh.get_worksheet(0)
 
                             col_b = worksheet.col_values(2)
@@ -2014,25 +2010,21 @@ elif pagina == "Agenda":
 
                             siguiente_folio = ultimo_folio + 1
                             folio_interno = f"{siguiente_folio}/{str(año_row)[-2:]}"
-
                             origen_real = limpiar_valor(row.get("Origen"), "Int")
                             if origen_real.lower() in ["agenda", ""]:
                                 origen_real = "Int"
 
                             id_cli = row.get("ID Cliente")
                             id_cli_limpio = int(id_cli) if id_cli and str(id_cli) not in ["", "nan", "None"] and pd.notnull(id_cli) else ""
-
                             es_rep = origen_real.lower() == "rep"
                             comentario_check = limpiar_valor(row.get("Comentarios con llamada posterior a venta"), "").lower()
                             cliente_no_contactar = any(p in comentario_check for p in [
                                 "no se llama", "no contactar", "no vuelve", "cliente no deseable", "muy mal"
                             ])
-
                             serv_sheets = limpiar_valor(row.get("Servicio"))
 
                             nueva_fila = [
-                                siguiente_folio,
-                                folio_interno,
+                                siguiente_folio, folio_interno,
                                 row["Fecha"].strftime("%m/%d/%Y"),
                                 id_cli_limpio,
                                 limpiar_valor(row.get("Nombre")),
@@ -2040,9 +2032,7 @@ elif pagina == "Agenda":
                                 limpiar_valor(row.get("Dirección")),
                                 origen_real,
                                 float(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0,
-                                serv_sheets,
-                                "",
-                                "", "", ""
+                                serv_sheets, "", "", "", ""
                             ]
 
                             col_c = worksheet.col_values(3)
@@ -2056,19 +2046,12 @@ elif pagina == "Agenda":
                                 primera_vacia = len(datos_col_c) + 2
 
                             worksheet.insert_row(nueva_fila, primera_vacia)
-
-                            client_auth.table("clientes").update({
-                                "folio": folio_interno
-                            }).eq("id", id_click).execute()
+                            client_auth.table("clientes").update({"folio": folio_interno}).eq("id", id_click).execute()
 
                             if cliente_no_contactar:
-                                worksheet.format(f"A{primera_vacia}", {
-                                    "backgroundColor": {"red": 0.9, "green": 0.2, "blue": 0.2}
-                                })
+                                worksheet.format(f"A{primera_vacia}", {"backgroundColor": {"red": 0.9, "green": 0.2, "blue": 0.2}})
                             elif es_rep:
-                                worksheet.format(f"A{primera_vacia}", {
-                                    "backgroundColor": {"red": 0.2, "green": 0.8, "blue": 0.2}
-                                })
+                                worksheet.format(f"A{primera_vacia}", {"backgroundColor": {"red": 0.2, "green": 0.8, "blue": 0.2}})
 
                             st.success("✅ Servicio marcado como realizado y guardado en Sheets.")
                             st.session_state["whatsapp_satisfaccion"] = {
@@ -2077,7 +2060,7 @@ elif pagina == "Agenda":
                                 "empresa": empresa
                             }
                         else:
-                            st.success("✅ Marcado como realizado. No hay sheet configurado para este año.")
+                            st.success("✅ Marcado como realizado.")
 
                         st.cache_data.clear()
                         del st.session_state["evento_seleccionado"]
@@ -2167,7 +2150,7 @@ elif pagina == "Agenda":
                     except Exception as e:
                         st.error(f"Error al editar: {e}")
 
-            st.markdown("#### 📅 Corregir fecha y hora del servicio")
+            st.markdown("#### 📅 Corregir fecha y hora")
             with st.form("editar_fecha_form"):
                 col1, col2 = st.columns(2)
                 with col1:
