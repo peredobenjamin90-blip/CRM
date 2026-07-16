@@ -42,17 +42,17 @@ def generar_hoja_servicio(
         # Dirección
         (70, 210, 762, 225, direccion, 9),
         # Ciudad fija
-        (10, 272, 185, 287, "Zapopan, Jalisco", 9),
+        (55, 272, 185, 287, "Zapopan, Jalisco", 9),
         # Teléfono
-        (210, 272, 430, 287, telefono, 9),
+        (310, 272, 430, 287, telefono, 9),
         # Fecha programada
         (10, 332, 130, 347, fecha, 9),
         # Hora programada
-        (135, 332, 255, 347, hora, 9),
-        # Técnico — en blanco si no se pasa
+        (145, 332, 255, 347, hora, 9),
+        # Técnico
         (260, 332, 490, 347, tecnico, 9),
         # Medio/Fuente
-        (500, 332, 762, 347, origen, 9),
+        (510, 332, 762, 347, origen, 9),
     ]
 
     packet = io.BytesIO()
