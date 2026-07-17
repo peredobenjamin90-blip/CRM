@@ -587,7 +587,7 @@ def cargar_config(empresa_id, access_token):
             cotizador["precios"] = precios
 
         usuario_resp = client.table("usuarios")\
-            .select("template_pdf, logo_url, app_nombre, app_icono")\
+            .select("template_pdf, logo_url, app_nombre, app_icono, ciudad")\
             .eq("id", empresa_id)\
             .single()\
             .execute()
@@ -595,6 +595,7 @@ def cargar_config(empresa_id, access_token):
         logo_url = usuario_resp.data.get("logo_url") if usuario_resp.data else None
         app_nombre = usuario_resp.data.get("app_nombre", "CRM Dashboard") if usuario_resp.data else "CRM Dashboard"
         app_icono = usuario_resp.data.get("app_icono", "📊") if usuario_resp.data else "📊"
+        ciudad = usuario_resp.data.get("ciudad", "") if usuario_resp.data else ""
 
         return {
             "sheets": sheets,
@@ -607,6 +608,7 @@ def cargar_config(empresa_id, access_token):
             "logo_url": logo_url,
             "app_nombre": app_nombre,
             "app_icono": app_icono,
+            "ciudad": ciudad,
         }
 
     except Exception as e:
@@ -630,8 +632,8 @@ if st.session_state.get("usuario") and config_usuario:
     USUARIOS[st.session_state["usuario"]]["logo_url"] = config_usuario.get("logo_url")
     USUARIOS[st.session_state["usuario"]]["app_nombre"] = config_usuario.get("app_nombre", "CRM Dashboard")
     USUARIOS[st.session_state["usuario"]]["app_icono"] = config_usuario.get("app_icono", "📊")
+    USUARIOS[st.session_state["usuario"]]["ciudad"] = config_usuario.get("ciudad", "")
 
-# Actualizar NOMBRE_APP con valor real de Supabase
 NOMBRE_APP = USUARIOS.get(st.session_state["usuario"], {}).get("app_nombre", "CRM Dashboard")
 
 # ── CARGAR DATOS DESDE SUPABASE ──
@@ -2005,6 +2007,7 @@ elif pagina == "Agenda":
                             descuento=monto_descuento,
                             iva=iva,
                             total=total_final,
+                            ciudad=USUARIOS[st.session_state["usuario"]].get("ciudad", ""),
                             template_path=USUARIOS[st.session_state["usuario"]].get("template_pdf") or "assets/Hoja de servicio de Maxi Clean.pdf"
                         )
                         st.download_button(
@@ -2168,6 +2171,7 @@ elif pagina == "Agenda":
                     descuento=0,
                     iva=0,
                     total=total_ev,
+                    ciudad=USUARIOS[st.session_state["usuario"]].get("ciudad", ""),
                     template_path=USUARIOS[st.session_state["usuario"]].get("template_pdf") or "assets/Hoja de servicio de Maxi Clean.pdf"
                 )
                 st.download_button(

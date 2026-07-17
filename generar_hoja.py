@@ -18,6 +18,7 @@ def generar_hoja_servicio(
     iva=0,
     total=0,
     tecnico="",
+    ciudad="",
     servicio="",
     cantidad="",
     paquete="",
@@ -26,8 +27,7 @@ def generar_hoja_servicio(
     IMAGE_WIDTH = 772
     IMAGE_HEIGHT = 1000
 
-    # Leer template desde URL o archivo local
-    if template_path and template_path.startswith("http"):
+    if template_path and str(template_path).startswith("http"):
         with urllib.request.urlopen(template_path) as response:
             pdf_data = response.read()
         reader = PdfReader(io.BytesIO(pdf_data))
@@ -62,7 +62,7 @@ def generar_hoja_servicio(
     campos_fijos = [
         (70, 173, 380, 188, nombre, 9),
         (70, 210, 762, 225, direccion, 9),
-        (65, 272, 240, 287, "Zapopan, Jalisco", 9),
+        (65, 272, 240, 287, ciudad, 9),
         (310, 272, 510, 287, telefono, 9),
         (32, 342, 138, 356, fecha, 9),
         (142, 342, 248, 356, hora, 9),
