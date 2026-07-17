@@ -510,8 +510,7 @@ if "cache_limpiado" not in st.session_state:
     st.session_state["cache_limpiado"] = True
 
 # ── CONFIG DINÁMICA ──
-app_config = USUARIOS.get(st.session_state["usuario"], {}).get("app", {})
-NOMBRE_APP = app_config.get("nombre", "CRM Dashboard")
+NOMBRE_APP = USUARIOS.get(st.session_state["usuario"], {}).get("app_nombre", "CRM Dashboard")
 
 # ── CARGAR CONFIG DESDE SUPABASE ──
 @st.cache_data(ttl=601)
@@ -587,15 +586,15 @@ def cargar_config(empresa_id, access_token):
         if cotizador:
             cotizador["precios"] = precios
 
-        # Template PDF
-# Template PDF
         usuario_resp = client.table("usuarios")\
-            .select("template_pdf, logo_url")\
+            .select("template_pdf, logo_url, app_nombre, app_icono")\
             .eq("id", empresa_id)\
             .single()\
             .execute()
         template_pdf = usuario_resp.data.get("template_pdf") if usuario_resp.data else None
         logo_url = usuario_resp.data.get("logo_url") if usuario_resp.data else None
+        app_nombre = usuario_resp.data.get("app_nombre", "CRM Dashboard") if usuario_resp.data else "CRM Dashboard"
+        app_icono = usuario_resp.data.get("app_icono", "📊") if usuario_resp.data else "📊"
 
         return {
             "sheets": sheets,
@@ -606,6 +605,8 @@ def cargar_config(empresa_id, access_token):
             "cotizador": cotizador,
             "template_pdf": template_pdf,
             "logo_url": logo_url,
+            "app_nombre": app_nombre,
+            "app_icono": app_icono,
         }
 
     except Exception as e:
@@ -627,6 +628,11 @@ if st.session_state.get("usuario") and config_usuario:
     USUARIOS[st.session_state["usuario"]]["cotizador"] = config_usuario.get("cotizador", {})
     USUARIOS[st.session_state["usuario"]]["template_pdf"] = config_usuario.get("template_pdf")
     USUARIOS[st.session_state["usuario"]]["logo_url"] = config_usuario.get("logo_url")
+    USUARIOS[st.session_state["usuario"]]["app_nombre"] = config_usuario.get("app_nombre", "CRM Dashboard")
+    USUARIOS[st.session_state["usuario"]]["app_icono"] = config_usuario.get("app_icono", "📊")
+
+# Actualizar NOMBRE_APP con valor real de Supabase
+NOMBRE_APP = USUARIOS.get(st.session_state["usuario"], {}).get("app_nombre", "CRM Dashboard")
 
 # ── CARGAR DATOS DESDE SUPABASE ──
 @st.cache_data(ttl=300)
