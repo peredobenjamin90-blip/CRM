@@ -1693,7 +1693,8 @@ elif pagina == "Agenda":
     df_a = df.copy()
     df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce")
     df_a["Monto"] = pd.to_numeric(df_a["Monto"], errors="coerce")
-    df_a["ID Cliente"] = pd.to_numeric(df_a["ID Cliente"], errors="coerce")
+    if "ID Cliente" in df_a.columns:
+        df_a["ID Cliente"] = pd.to_numeric(df_a["ID Cliente"], errors="coerce")
 
     plantillas = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
     empresa = st.session_state.get("empresa", "")
