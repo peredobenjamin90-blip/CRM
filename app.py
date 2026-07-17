@@ -515,39 +515,45 @@ NOMBRE_APP = app_config.get("nombre", "CRM Dashboard")
 
 # ── CARGAR CONFIG DESDE SUPABASE ──
 @st.cache_data(ttl=600)
-def cargar_config(empresa_id):
+def cargar_config(empresa_id, access_token):
     try:
-        sheets_resp = supabase.table("usuario_sheets")\
+        client = create_client(
+            st.secrets["SUPABASE_URL"],
+            st.secrets["SUPABASE_KEY"]
+        )
+        client.postgrest.auth(access_token)
+
+        sheets_resp = client.table("usuario_sheets")\
             .select("año, sheet_id")\
             .eq("empresa_id", empresa_id)\
             .execute()
         sheets = {int(r["año"]): r["sheet_id"] for r in sheets_resp.data} if sheets_resp.data else {}
 
-        finanzas_resp = supabase.table("usuario_finanzas")\
+        finanzas_resp = client.table("usuario_finanzas")\
             .select("año, url")\
             .eq("empresa_id", empresa_id)\
             .execute()
         finanzas = {int(r["año"]): r["url"] for r in finanzas_resp.data} if finanzas_resp.data else {}
 
-        origenes_resp = supabase.table("usuario_origenes")\
+        origenes_resp = client.table("usuario_origenes")\
             .select("clave, valor")\
             .eq("empresa_id", empresa_id)\
             .execute()
         origenes = {r["clave"]: r["valor"] for r in origenes_resp.data} if origenes_resp.data else {}
 
-        plantillas_resp = supabase.table("usuario_plantillas")\
+        plantillas_resp = client.table("usuario_plantillas")\
             .select("clave, mensaje")\
             .eq("empresa_id", empresa_id)\
             .execute()
         plantillas = {r["clave"]: r["mensaje"] for r in plantillas_resp.data} if plantillas_resp.data else {}
 
-        categorias_resp = supabase.table("usuario_categorias")\
+        categorias_resp = client.table("usuario_categorias")\
             .select("categoria, keywords")\
             .eq("empresa_id", empresa_id)\
             .execute()
         categorias = {r["categoria"]: r["keywords"] for r in categorias_resp.data} if categorias_resp.data else {}
 
-        cotizador_resp = supabase.table("usuario_cotizador")\
+        cotizador_resp = client.table("usuario_cotizador")\
             .select("*")\
             .eq("empresa_id", empresa_id)\
             .limit(1)\
@@ -568,8 +574,7 @@ def cargar_config(empresa_id):
                 "servicios_sillas": c.get("servicios_sillas", []),
             }
 
-        # Precios cotizador
-        precios_resp = supabase.table("usuario_cotizador_precios")\
+        precios_resp = client.table("usuario_cotizador_precios")\
             .select("servicio, paquete, precio")\
             .eq("empresa_id", empresa_id)\
             .execute()
@@ -596,7 +601,8 @@ def cargar_config(empresa_id):
         return {}
 
 empresa_id_config = st.session_state.get("empresa_id", "")
-config_usuario = cargar_config(empresa_id_config)
+access_token_config = st.session_state.get("access_token", "")
+config_usuario = cargar_config(empresa_id_config, access_token_config)
 
 if st.session_state.get("usuario") and config_usuario:
     if st.session_state["usuario"] not in USUARIOS:
