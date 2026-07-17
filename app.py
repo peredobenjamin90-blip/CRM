@@ -514,7 +514,7 @@ app_config = USUARIOS.get(st.session_state["usuario"], {}).get("app", {})
 NOMBRE_APP = app_config.get("nombre", "CRM Dashboard")
 
 # ── CARGAR CONFIG DESDE SUPABASE ──
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=601)
 def cargar_config(empresa_id, access_token):
     try:
         client = create_client(
@@ -706,7 +706,10 @@ with st.sidebar:
     logo_url = USUARIOS[st.session_state["usuario"]].get("logo_url")
     if logo_url:
         st.image(logo_url, width=120)
-
+logo_url = USUARIOS[st.session_state["usuario"]].get("logo_url")
+st.caption(f"DEBUG logo: {logo_url}")
+if logo_url:
+    st.image(logo_url, width=120)
     st.markdown(f"<h3 style='color:white'>{st.session_state['empresa']}</h3>", unsafe_allow_html=True)
     st.markdown("---")
 
