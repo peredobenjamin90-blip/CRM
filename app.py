@@ -835,6 +835,80 @@ if pagina == "Resumen":
 elif pagina == "Ventas":
     st.title("Análisis de Ventas")
 
+    # ── ESTADÍSTICAS FINANCIERAS DESDE SHEETS ──
+    st.subheader("💰 Margen de ganancia mensual 2026")
+
+    @st.cache_data(ttl=3600)
+    def cargar_estadisticas_finales():
+        try:
+            client_gs = get_gspread_client()
+            sh = client_gs.open_by_key("1mqcHNhQEjEhKYYuY6iDOVpmPDH7br0VJITxdVx7wzls")
+            ws = sh.worksheet("Estadisticas Finales")
+            datos = ws.get_all_values()
+            meses = []
+            for row in datos[1:13]:  # filas 2-13 (Ene-Dic)
+                if len(row) >= 4 and row[0].strip():
+                    try:
+                        ventas = float(str(row[1]).replace("$","").replace(",","").strip()) if row[1].strip() else 0
+                        gastos = float(str(row[2]).replace("$","").replace(",","").strip()) if row[2].strip() else 0
+                        ganancia = float(str(row[3]).replace("$","").replace(",","").strip()) if row[3].strip() and row[3].strip() != "-" else 0
+                        meses.append({
+                            "Mes": row[0].strip(),
+                            "Ventas": ventas,
+                            "Gastos": gastos,
+                            "Ganancia": ganancia
+                        })
+                    except:
+                        pass
+            return pd.DataFrame(meses)
+        except Exception as e:
+            return pd.DataFrame()
+
+    df_stats = cargar_estadisticas_finales()
+
+    if not df_stats.empty:
+        df_plot = df_stats[df_stats["Ventas"] > 0].copy()
+
+        if not df_plot.empty:
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Total ventas", f"${df_plot['Ventas'].sum():,.0f}")
+            col2.metric("Total gastos", f"${df_plot['Gastos'].sum():,.0f}")
+            col3.metric("Ganancia total", f"${df_plot['Ganancia'].sum():,.0f}")
+
+            fig_margen = px.bar(
+                df_plot,
+                x="Mes",
+                y=["Ventas", "Gastos", "Ganancia"],
+                barmode="group",
+                color_discrete_map={
+                    "Ventas": "#4F6AF0",
+                    "Gastos": "#EF4444",
+                    "Ganancia": "#10B981"
+                },
+                labels={"value": "Pesos MXN", "variable": "Concepto"}
+            )
+            fig_margen.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                legend_title_text=""
+            )
+            st.plotly_chart(fig_margen, use_container_width=True)
+
+            # Tabla detallada
+            df_tabla = df_plot.copy()
+            df_tabla["Margen %"] = (df_tabla["Ganancia"] / df_tabla["Ventas"] * 100).round(1).astype(str) + "%"
+            df_tabla["Ventas"] = df_tabla["Ventas"].apply(lambda x: f"${x:,.0f}")
+            df_tabla["Gastos"] = df_tabla["Gastos"].apply(lambda x: f"${x:,.0f}")
+            df_tabla["Ganancia"] = df_tabla["Ganancia"].apply(lambda x: f"${x:,.0f}")
+            st.dataframe(df_tabla, use_container_width=True, hide_index=True)
+        else:
+            st.info("Aún no hay datos financieros para 2026.")
+    else:
+        st.warning("No se pudieron cargar las estadísticas financieras.")
+
+    st.markdown("---")
+
+    # ── VENTAS POR AÑO ──
     ventas_año = df[df["Año"].isin(años_sin_2026)].groupby("Año")["Monto"].sum().reset_index()
     ventas_año.columns = ["Año", "Total"]
     st.subheader("Ventas totales por año")
@@ -843,8 +917,6 @@ elif pagina == "Ventas":
     st.subheader("Comparación mensual")
     años_sel = st.multiselect("Años:", años_sin_2026, default=años_sin_2026[-2:])
     if años_sel:
-        import plotly.express as px
-
         df_f = df[df["Año"].isin(años_sel)]
         pivot = df_f.groupby(["Año","Mes"])["Monto"].sum().reset_index()
         pivot = pivot.pivot(index="Mes", columns="Año", values="Monto").fillna(0)
@@ -853,17 +925,16 @@ elif pagina == "Ventas":
         nombres_meses = {1:"Ene",2:"Feb",3:"Mar",4:"Abr",5:"May",6:"Jun",
                          7:"Jul",8:"Ago",9:"Sep",10:"Oct",11:"Nov",12:"Dic"}
         pivot.index = pivot.index.map(nombres_meses)
-
         pivot_reset = pivot.reset_index()
         pivot_reset.columns.name = None
 
         fig = px.line(
-            pivot_reset,
-            x="Mes",
+            pivot_reset, x="Mes",
             y=[col for col in pivot_reset.columns if col != "Mes"],
             labels={"value": "Ventas", "variable": "Año"},
             category_orders={"Mes": ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]}
         )
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Proyección 2026")
@@ -876,7 +947,7 @@ elif pagina == "Ventas":
         if ventas_2025_mismos_meses > 0 and ventas_2026_acum > 0:
             factor_crecimiento = ventas_2026_acum / ventas_2025_mismos_meses
             proyeccion = ventas_2025_total * factor_crecimiento
-            tendencia = ((factor_crecimiento - 1) * 100)
+            tendencia = (factor_crecimiento - 1) * 100
             color = "green" if factor_crecimiento >= 1 else "red"
         else:
             proyeccion = ventas_2025_total
@@ -887,10 +958,7 @@ elif pagina == "Ventas":
         col1.metric("Proyección anual 2026", f"${proyeccion:,.0f}")
         col2.metric("Ventas reales 2026", f"${ventas_2026_acum:,.0f}")
         col3.metric("Tendencia vs 2025", f"{tendencia:+.1f}%")
-        st.markdown(
-            f"<p style='color:{color}'>Basado en {meses_con_datos_2026} mes(es) de datos reales de 2026</p>",
-            unsafe_allow_html=True
-        )
+        st.markdown(f"<p style='color:{color}'>Basado en {meses_con_datos_2026} mes(es) de datos reales de 2026</p>", unsafe_allow_html=True)
 
         st.subheader("Detalle mes a mes — 2026 vs 2025")
         nombres_meses_completos = {1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",5:"Mayo",6:"Junio",
@@ -910,9 +978,6 @@ elif pagina == "Ventas":
             })
         st.dataframe(pd.DataFrame(resumen_meses), use_container_width=True, hide_index=True)
 
-    # ─────────────────────────────
-    # 📈 CONVERSIÓN DE FOLLOW UP
-    # ─────────────────────────────
     st.markdown("---")
     st.subheader("📈 Conversión de Follow Up")
 
@@ -920,7 +985,6 @@ elif pagina == "Ventas":
         st.session_state["followup_resultados"] = []
 
     resultados = st.session_state["followup_resultados"]
-
     if resultados:
         import collections
         conteo_resultados = collections.Counter(r["resultado"] for r in resultados)
@@ -941,11 +1005,10 @@ elif pagina == "Ventas":
         with st.expander("Ver detalle completo"):
             st.dataframe(
                 pd.DataFrame(resultados)[["timestamp", "nombre", "resultado", "bloque"]],
-                use_container_width=True,
-                hide_index=True
+                use_container_width=True, hide_index=True
             )
     else:
-        st.info("Aún no hay resultados de follow up registrados. Márcalos en la página Follow Up.")
+        st.info("Aún no hay resultados de follow up registrados.")
         # CLIENTES
 elif pagina == "Clientes":
     import urllib.parse
