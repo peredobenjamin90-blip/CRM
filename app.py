@@ -1426,11 +1426,13 @@ elif pagina == "Follow Up":
     st.dataframe(sin_servicio[["ID Cliente", "Nombre", "Tel", "Ultimo servicio", "Comentario"]], use_container_width=True, hide_index=True)
 
     st.markdown("### 🚀 Enviar mensaje a todos")
+    plantillas_usuario = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
+
     PLANTILLAS_MENSAJES = {
-        "Seguimiento": "Hola {nombre}, te contactamos de {empresa}. Solo para dar seguimiento a tu último servicio. ¿Cómo fue tu experiencia?",
-        "Recordatorio": "Hola {nombre}, en {empresa} te recordamos que ya pasó tiempo desde tu último servicio. ¿Te gustaría agendar?",
-        "Promoción": "Hola {nombre}, en {empresa} tenemos una promoción especial disponible. ¿Te interesa aprovecharla?",
-        "Reactivación": "Hola {nombre}, te extrañamos en {empresa} 😄 Tenemos disponibilidad esta semana. ¿Agendamos?"
+        "Seguimiento": plantillas_usuario.get("seguimiento", "Hola {nombre}, te contactamos de {empresa}. Solo para dar seguimiento a tu último servicio. ¿Cómo fue tu experiencia?"),
+        "Recordatorio": plantillas_usuario.get("recordatorio", "Hola {nombre}, en {empresa} te recordamos que ya pasó tiempo desde tu último servicio. ¿Te gustaría agendar?"),
+        "Promoción": plantillas_usuario.get("promocion", "Hola {nombre}, en {empresa} tenemos una promoción especial disponible. ¿Te interesa aprovecharla?"),
+        "Reactivación": plantillas_usuario.get("reactivacion", "Hola {nombre}, te extrañamos en {empresa} 😄 Tenemos disponibilidad esta semana. ¿Agendamos?"),
     }
 
     plantilla_masiva = st.selectbox("Plantilla:", list(PLANTILLAS_MENSAJES.keys()), key="plantilla_masiva_followup")
