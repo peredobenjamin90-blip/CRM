@@ -941,6 +941,7 @@ elif pagina == "Ventas":
     st.subheader("💰 Margen de ganancia mensual 2026")
 
     finanzas_usuario = USUARIOS[st.session_state["usuario"]].get("finanzas", {})
+    sheets_usuario = USUARIOS[st.session_state["usuario"]].get("sheets", {})
 
     if not finanzas_usuario:
         st.info("No hay datos financieros configurados para esta cuenta.")
@@ -973,13 +974,8 @@ elif pagina == "Ventas":
             except Exception as e:
                 return pd.DataFrame()
 
-        # Buscar sheet_id del año más reciente
-        sheet_id_stats = None
-        for año in sorted(finanzas_usuario.keys(), reverse=True):
-            url = finanzas_usuario[año]
-            if "spreadsheets/d/" in str(url):
-                sheet_id_stats = str(url).split("/d/")[1].split("/")[0]
-                break
+        # Usar sheet de ventas 2026 que tiene Estadisticas finales
+        sheet_id_stats = sheets_usuario.get(2026) or (sheets_usuario.get(max(sheets_usuario.keys())) if sheets_usuario else None)
 
         if sheet_id_stats:
             try:
@@ -1027,7 +1023,7 @@ elif pagina == "Ventas":
             else:
                 st.info("No se encontró la hoja 'Estadisticas finales' en el Sheet configurado.")
         else:
-            st.info("No hay Sheet de finanzas configurado.")
+            st.info("No hay Sheet configurado.")
 
     st.markdown("---")
 
