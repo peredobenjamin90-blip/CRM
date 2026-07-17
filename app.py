@@ -1637,8 +1637,8 @@ elif pagina == "Agenda":
     SHEET_IDS = USUARIOS[st.session_state["usuario"]].get("sheets", {})
     cotizador = USUARIOS[st.session_state["usuario"]].get("cotizador", {})
     PRECIOS = cotizador.get("precios", {})
-    PAQUETES_COT = cotizador.get("paquetes", ["Sencillo", "Ecológico", "Protección", "Premium"])
-    MINIMO = 950
+    PAQUETES_COT = cotizador.get("paquetes", [])
+    MINIMO = cotizador.get("minimo", 950)
 
     def get_supabase_auth():
         client_auth = create_client(
@@ -1693,8 +1693,11 @@ elif pagina == "Agenda":
     df_a = df.copy()
     df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce")
     df_a["Monto"] = pd.to_numeric(df_a["Monto"], errors="coerce")
-    if "ID Cliente" in df_a.columns:
-        df_a["ID Cliente"] = pd.to_numeric(df_a["ID Cliente"], errors="coerce")
+    if "ID Cliente" not in df_a.columns:
+        df_a["ID Cliente"] = None
+    if "hora" not in df_a.columns:
+        df_a["hora"] = None
+    df_a["ID Cliente"] = pd.to_numeric(df_a["ID Cliente"], errors="coerce")
 
     plantillas = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
     empresa = st.session_state.get("empresa", "")
@@ -1763,7 +1766,8 @@ elif pagina == "Agenda":
             if str(t).strip() not in ["", "nan"]
         )),
         Direccion=("Dirección", "last"),
-    ).reset_index()
+    ).reset_index() if not df_a.empty and df_a["ID Cliente"].notna().any() else pd.DataFrame(columns=["ID Cliente", "Nombre", "Telefonos", "Direccion"])
+
     clientes_info["ID Cliente"] = pd.to_numeric(clientes_info["ID Cliente"], errors="coerce")
     clientes_info = clientes_info.dropna(subset=["ID Cliente"])
     clientes_info["ID Cliente"] = clientes_info["ID Cliente"].astype(int)
@@ -1773,7 +1777,7 @@ elif pagina == "Agenda":
         key=f"buscar_agenda_{st.session_state['form_key']}"
     )
 
-    if buscar_agenda and not limpiar:
+    if buscar_agenda and not limpiar and not clientes_info.empty:
         if buscar_agenda.strip().isdigit():
             clientes_filtrados = clientes_info[
                 clientes_info["ID Cliente"].astype(str).str.startswith(buscar_agenda.strip())
@@ -1806,12 +1810,11 @@ elif pagina == "Agenda":
         dir_default = st.session_state.get("agenda_cliente_dir", "")
         st.info(f"✅ Cliente seleccionado: [{id_cliente_default}] {nombre_default}")
 
-    ORIGENES = ["Rep", "Int", "Rec", "Face", "Amigo", "Club", "Maristas"]
+    ORIGENES = list(USUARIOS[st.session_state["usuario"]].get("origenes", {}).keys()) or ["Rep", "Int", "Rec"]
     PAQUETES = [""] + PAQUETES_COT
     SERVICIOS_LISTA = [""] + list(PRECIOS.keys())
     N_RENGLONES = 8
 
-    # ── CAMPOS FUERA DEL FORM PARA TIEMPO REAL ──
     nombre = st.text_input("Nombre del cliente", value=nombre_default, key=f"nombre_{st.session_state['form_key']}")
     telefono = st.text_input("Teléfono(s)", value=tel_default, key=f"tel_{st.session_state['form_key']}")
     direccion = st.text_input("Dirección", value=dir_default, key=f"dir_{st.session_state['form_key']}")
@@ -1830,23 +1833,11 @@ elif pagina == "Agenda":
     for i in range(N_RENGLONES):
         c1, c2, c3, c4, c5 = st.columns([4, 1, 2, 2, 2])
         with c1:
-            serv_i = st.selectbox(
-                f"s{i}", SERVICIOS_LISTA,
-                label_visibility="collapsed",
-                key=f"serv_{i}_{st.session_state['form_key']}"
-            )
+            serv_i = st.selectbox(f"s{i}", SERVICIOS_LISTA, label_visibility="collapsed", key=f"serv_{i}_{st.session_state['form_key']}")
         with c2:
-            cant_i = st.number_input(
-                f"c{i}", min_value=0, value=0,
-                label_visibility="collapsed",
-                key=f"cant_{i}_{st.session_state['form_key']}"
-            )
+            cant_i = st.number_input(f"c{i}", min_value=0, value=0, label_visibility="collapsed", key=f"cant_{i}_{st.session_state['form_key']}")
         with c3:
-            paq_i = st.selectbox(
-                f"p{i}", PAQUETES,
-                label_visibility="collapsed",
-                key=f"paq_{i}_{st.session_state['form_key']}"
-            )
+            paq_i = st.selectbox(f"p{i}", PAQUETES, label_visibility="collapsed", key=f"paq_{i}_{st.session_state['form_key']}")
         p_unit = get_precio(serv_i, paq_i, 1) if serv_i and paq_i else 0
         subtotal_i = get_precio(serv_i, paq_i, int(cant_i)) if serv_i and paq_i and cant_i > 0 else 0
         with c4:
@@ -1863,7 +1854,6 @@ elif pagina == "Agenda":
                 "subtotal": subtotal_i
             })
 
-    # ── TOTALES EN TIEMPO REAL ──
     st.markdown("---")
     subtotal_total = sum(r["subtotal"] for r in renglones)
     subtotal_final = max(subtotal_total, MINIMO) if subtotal_total > 0 else 0
@@ -1890,8 +1880,7 @@ elif pagina == "Agenda":
                 st.markdown(f"**IVA 16%:** ${iva:,.0f}")
             st.markdown(f"### 💰 Total: ${total_final:,.0f}")
 
-    # ── DATOS ADICIONALES + BOTÓN ──
-    origen_input = st.selectbox("Origen", ORIGENES, index=0 if id_cliente_default else 1, key=f"origen_{st.session_state['form_key']}")
+    origen_input = st.selectbox("Origen", ORIGENES, key=f"origen_{st.session_state['form_key']}")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -2021,8 +2010,9 @@ elif pagina == "Agenda":
     df_cal = df_a[
         (df_a["Fecha"].dt.year == hoy.year) &
         (df_a["Fecha"].dt.month == hoy.month)
-    ].copy()
-    df_cal = df_cal.dropna(subset=["Fecha"])
+    ].copy() if not df_a.empty else pd.DataFrame()
+    if not df_cal.empty:
+        df_cal = df_cal.dropna(subset=["Fecha"])
 
     eventos = []
     for _, row in df_cal.iterrows():
@@ -2068,7 +2058,7 @@ elif pagina == "Agenda":
     if "evento_seleccionado" in st.session_state:
         ev = st.session_state["evento_seleccionado"]
         id_click = ev["id"]
-        df_evento = df_cal[df_cal["id"].astype(str) == str(id_click)]
+        df_evento = df_cal[df_cal["id"].astype(str) == str(id_click)] if not df_cal.empty else pd.DataFrame()
 
         if not df_evento.empty:
             row = df_evento.iloc[0]
@@ -2113,7 +2103,6 @@ elif pagina == "Agenda":
                     url_sat = f"https://wa.me/{tel_ev_completo}?text={urllib.parse.quote(msg_sat)}"
                     st.link_button("💬 Enviar WhatsApp de satisfacción", url_sat)
 
-            # ── HOJA DE SERVICIO ──
             try:
                 folio_ev = limpiar_valor(row.get("folio")) or ""
                 comentarios_raw = limpiar_valor(row.get("Comentarios con llamada posterior a venta"))
@@ -2262,10 +2251,10 @@ elif pagina == "Agenda":
                     "Monto", min_value=0,
                     value=int(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0
                 )
-                origen_actual = limpiar_valor(row.get("Origen"), "Int")
+                origen_actual = limpiar_valor(row.get("Origen"), ORIGENES[0] if ORIGENES else "")
                 edit_origen = st.selectbox(
                     "Origen", ORIGENES,
-                    index=ORIGENES.index(origen_actual) if origen_actual in ORIGENES else 1
+                    index=ORIGENES.index(origen_actual) if origen_actual in ORIGENES else 0
                 )
                 guardar_edicion = st.form_submit_button("💾 Guardar cambios", use_container_width=True)
 
@@ -2282,7 +2271,7 @@ elif pagina == "Agenda":
                         }).eq("id", id_click).execute()
 
                         folio_actual = limpiar_valor(row.get("folio"))
-                        if folio_actual and realizado:
+                        if folio_actual and realizado and SHEET_IDS:
                             try:
                                 año_row = int(row.get("Año", hoy.year))
                                 if año_row in SHEET_IDS:
