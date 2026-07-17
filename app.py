@@ -842,7 +842,7 @@ elif pagina == "Ventas":
     def cargar_estadisticas_finales(_client_gs):
         try:
             sh = _client_gs.open_by_key("1mqcHNhQEjEhKYYuY6iDOVpmPDH7br0VJITxdVx7wzls")
-            ws = sh.worksheet("Estadisticas Finales")
+            ws = sh.worksheet("Estadisticas finales")
             datos = ws.get_all_values()
             meses = []
             for row in datos[1:13]:
