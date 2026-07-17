@@ -839,14 +839,13 @@ elif pagina == "Ventas":
     st.subheader("💰 Margen de ganancia mensual 2026")
 
     @st.cache_data(ttl=3600)
-    def cargar_estadisticas_finales():
+    def cargar_estadisticas_finales(_client_gs):
         try:
-            client_gs = get_gspread_client()
-            sh = client_gs.open_by_key("1mqcHNhQEjEhKYYuY6iDOVpmPDH7br0VJITxdVx7wzls")
+            sh = _client_gs.open_by_key("1mqcHNhQEjEhKYYuY6iDOVpmPDH7br0VJITxdVx7wzls")
             ws = sh.worksheet("Estadisticas Finales")
             datos = ws.get_all_values()
             meses = []
-            for row in datos[1:13]:  # filas 2-13 (Ene-Dic)
+            for row in datos[1:13]:
                 if len(row) >= 4 and row[0].strip():
                     try:
                         ventas = float(str(row[1]).replace("$","").replace(",","").strip()) if row[1].strip() else 0
@@ -862,9 +861,14 @@ elif pagina == "Ventas":
                         pass
             return pd.DataFrame(meses)
         except Exception as e:
+            st.error(f"Error stats: {e}")
             return pd.DataFrame()
 
-    df_stats = cargar_estadisticas_finales()
+    try:
+        client_gs_stats = get_gspread_client()
+        df_stats = cargar_estadisticas_finales(client_gs_stats)
+    except:
+        df_stats = pd.DataFrame()
 
     if not df_stats.empty:
         df_plot = df_stats[df_stats["Ventas"] > 0].copy()
@@ -894,7 +898,6 @@ elif pagina == "Ventas":
             )
             st.plotly_chart(fig_margen, use_container_width=True)
 
-            # Tabla detallada
             df_tabla = df_plot.copy()
             df_tabla["Margen %"] = (df_tabla["Ganancia"] / df_tabla["Ventas"] * 100).round(1).astype(str) + "%"
             df_tabla["Ventas"] = df_tabla["Ventas"].apply(lambda x: f"${x:,.0f}")
@@ -904,7 +907,7 @@ elif pagina == "Ventas":
         else:
             st.info("Aún no hay datos financieros para 2026.")
     else:
-        st.warning("No se pudieron cargar las estadísticas financieras.")
+        st.info("No hay datos financieros disponibles.")
 
     st.markdown("---")
 
