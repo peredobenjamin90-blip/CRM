@@ -590,7 +590,7 @@ def cargar_config(empresa_id, access_token):
         # Template PDF
 # Template PDF
         usuario_resp = client.table("usuarios")\
-            .select("template_pdf")\
+            .select("template_pdf, logo_url")\
             .eq("id", empresa_id)\
             .single()\
             .execute()
