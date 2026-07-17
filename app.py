@@ -1429,10 +1429,10 @@ elif pagina == "Follow Up":
     plantillas_usuario = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
 
     PLANTILLAS_MENSAJES = {
-        "Seguimiento": plantillas_usuario.get("seguimiento", "Hola {nombre}, te contactamos de {empresa}. Solo para dar seguimiento a tu último servicio. ¿Cómo fue tu experiencia?"),
-        "Recordatorio": plantillas_usuario.get("recordatorio", "Hola {nombre}, en {empresa} te recordamos que ya pasó tiempo desde tu último servicio. ¿Te gustaría agendar?"),
-        "Promoción": plantillas_usuario.get("promocion", "Hola {nombre}, en {empresa} tenemos una promoción especial disponible. ¿Te interesa aprovecharla?"),
-        "Reactivación": plantillas_usuario.get("reactivacion", "Hola {nombre}, te extrañamos en {empresa} 😄 Tenemos disponibilidad esta semana. ¿Agendamos?"),
+        "seguimiento": plantillas_usuario.get("seguimiento", "Hola {nombre}, te contactamos de {empresa}. Solo para dar seguimiento a tu último servicio. ¿Cómo fue tu experiencia?"),
+        "recordatorio": plantillas_usuario.get("recordatorio", "Hola {nombre}, en {empresa} te recordamos que ya pasó tiempo desde tu último servicio. ¿Te gustaría agendar?"),
+        "promoción": plantillas_usuario.get("promocion", "Hola {nombre}, en {empresa} tenemos una promoción especial disponible. ¿Te interesa aprovecharla?"),
+        "reactivación": plantillas_usuario.get("reactivacion", "Hola {nombre}, te extrañamos en {empresa} 😄 Tenemos disponibilidad esta semana. ¿Agendamos?"),
     }
 
     plantilla_masiva = st.selectbox("Plantilla:", list(PLANTILLAS_MENSAJES.keys()), key="plantilla_masiva_followup")
