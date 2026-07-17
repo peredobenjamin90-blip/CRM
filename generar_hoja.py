@@ -1,4 +1,5 @@
 import io
+import urllib.request
 from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 
@@ -17,7 +18,6 @@ def generar_hoja_servicio(
     iva=0,
     total=0,
     tecnico="",
-    # compatibilidad hacia atrás
     servicio="",
     cantidad="",
     paquete="",
@@ -26,12 +26,17 @@ def generar_hoja_servicio(
     IMAGE_WIDTH = 772
     IMAGE_HEIGHT = 1000
 
-    reader = PdfReader(template_path)
-    page = reader.pages[0]
+    # Leer template desde URL o archivo local
+    if template_path and template_path.startswith("http"):
+        with urllib.request.urlopen(template_path) as response:
+            pdf_data = response.read()
+        reader = PdfReader(io.BytesIO(pdf_data))
+    else:
+        reader = PdfReader(template_path)
 
+    page = reader.pages[0]
     pdf_width = float(page.mediabox.width)
     pdf_height = float(page.mediabox.height)
-
     scale_x = pdf_width / IMAGE_WIDTH
     scale_y = pdf_height / IMAGE_HEIGHT
 
@@ -42,7 +47,6 @@ def generar_hoja_servicio(
         y1 = pdf_height - (img_y * scale_y)
         return x0, y0, x1, y1
 
-    # Si no hay items, usar campos legacy
     if not items:
         partes = [s.strip() for s in servicio.split(",", 1)] if "," in servicio else [servicio]
         items = [{
@@ -66,7 +70,6 @@ def generar_hoja_servicio(
         (594, 342, 762, 356, origen, 9),
     ]
 
-    # Coordenadas Y de cada renglón de descripción
     Y_RENGLONES = [572, 590, 608, 626, 644, 662, 680]
 
     campos_items = []
@@ -92,7 +95,6 @@ def generar_hoja_servicio(
         if sub_txt:
             campos_items.append((663, y, 762, y + dy, sub_txt, 9))
 
-    # Totales
     campos_totales = []
     if subtotal > 0:
         campos_totales.append((663, 755, 762, 769, f"${subtotal:,.0f}", 9))

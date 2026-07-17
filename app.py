@@ -587,6 +587,15 @@ def cargar_config(empresa_id, access_token):
         if cotizador:
             cotizador["precios"] = precios
 
+        # Template PDF
+# Template PDF
+        usuario_resp = client.table("usuarios")\
+            .select("template_pdf")\
+            .eq("id", empresa_id)\
+            .single()\
+            .execute()
+        template_pdf = usuario_resp.data.get("template_pdf") if usuario_resp.data else None
+
         return {
             "sheets": sheets,
             "finanzas": finanzas,
@@ -594,6 +603,7 @@ def cargar_config(empresa_id, access_token):
             "plantillas": plantillas,
             "categorias": categorias,
             "cotizador": cotizador,
+            "template_pdf": template_pdf,
         }
 
     except Exception as e:
@@ -613,6 +623,7 @@ if st.session_state.get("usuario") and config_usuario:
     USUARIOS[st.session_state["usuario"]]["plantillas"] = config_usuario.get("plantillas", {})
     USUARIOS[st.session_state["usuario"]]["categorias"] = config_usuario.get("categorias", {})
     USUARIOS[st.session_state["usuario"]]["cotizador"] = config_usuario.get("cotizador", {})
+    USUARIOS[st.session_state["usuario"]]["template_pdf"] = config_usuario.get("template_pdf")
 
 # ── CARGAR DATOS DESDE SUPABASE ──
 @st.cache_data(ttl=300)
@@ -1991,7 +2002,7 @@ elif pagina == "Agenda":
                             descuento=monto_descuento,
                             iva=iva,
                             total=total_final,
-                            template_path="assets/Hoja de servicio de Maxi Clean.pdf"
+                            template_path=USUARIOS[st.session_state["usuario"]].get("template_pdf") or "assets/Hoja de servicio de Maxi Clean.pdf"
                         )
                         st.download_button(
                             "📄 Descargar hoja de servicio",
@@ -2154,7 +2165,7 @@ elif pagina == "Agenda":
                     descuento=0,
                     iva=0,
                     total=total_ev,
-                    template_path="assets/Hoja de servicio de Maxi Clean.pdf"
+                    template_path=USUARIOS[st.session_state["usuario"]].get("template_pdf") or "assets/Hoja de servicio de Maxi Clean.pdf"
                 )
                 st.download_button(
                     "📄 Descargar hoja de servicio",
