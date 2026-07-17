@@ -595,6 +595,7 @@ def cargar_config(empresa_id, access_token):
             .single()\
             .execute()
         template_pdf = usuario_resp.data.get("template_pdf") if usuario_resp.data else None
+        logo_url = usuario_resp.data.get("logo_url") if usuario_resp.data else None
 
         return {
             "sheets": sheets,
@@ -604,6 +605,7 @@ def cargar_config(empresa_id, access_token):
             "categorias": categorias,
             "cotizador": cotizador,
             "template_pdf": template_pdf,
+            "logo_url": logo_url,
         }
 
     except Exception as e:
@@ -624,6 +626,7 @@ if st.session_state.get("usuario") and config_usuario:
     USUARIOS[st.session_state["usuario"]]["categorias"] = config_usuario.get("categorias", {})
     USUARIOS[st.session_state["usuario"]]["cotizador"] = config_usuario.get("cotizador", {})
     USUARIOS[st.session_state["usuario"]]["template_pdf"] = config_usuario.get("template_pdf")
+    USUARIOS[st.session_state["usuario"]]["logo_url"] = config_usuario.get("logo_url")
 
 # ── CARGAR DATOS DESDE SUPABASE ──
 @st.cache_data(ttl=300)
@@ -700,13 +703,9 @@ if not años_disponibles:
 años_sin_2026 = años_disponibles
 # ── SIDEBAR ──
 with st.sidebar:
-    logo_path = USUARIOS[st.session_state["usuario"]].get("app", {}).get("logo")
-    if logo_path:
-        try:
-            logo_path_full = os.path.join(os.path.dirname(os.path.abspath(__file__)), logo_path)
-            st.image(logo_path_full, width=120)
-        except Exception as e:
-            pass
+    logo_url = USUARIOS[st.session_state["usuario"]].get("logo_url")
+    if logo_url:
+        st.image(logo_url, width=120)
 
     st.markdown(f"<h3 style='color:white'>{st.session_state['empresa']}</h3>", unsafe_allow_html=True)
     st.markdown("---")
