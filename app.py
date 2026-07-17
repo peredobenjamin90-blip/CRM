@@ -510,6 +510,7 @@ if "cache_limpiado" not in st.session_state:
     st.session_state["cache_limpiado"] = True
 
 # ── CONFIG DINÁMICA ──
+# ── CONFIG DINÁMICA ──
 NOMBRE_APP = USUARIOS.get(st.session_state["usuario"], {}).get("app_nombre", "CRM Dashboard")
 
 # ── CARGAR CONFIG DESDE SUPABASE ──
@@ -586,6 +587,28 @@ def cargar_config(empresa_id, access_token):
         if cotizador:
             cotizador["precios"] = precios
 
+        columnas_resp = client.table("usuario_sheet_columnas")\
+            .select("*")\
+            .eq("empresa_id", empresa_id)\
+            .limit(1)\
+            .execute()
+        sheet_columnas = {}
+        if columnas_resp.data:
+            c = columnas_resp.data[0]
+            sheet_columnas = {
+                "folio_sistema": c.get("col_folio_sistema", 1) - 1,
+                "folio_interno": c.get("col_folio_interno", 2) - 1,
+                "fecha": c.get("col_fecha", 3) - 1,
+                "id_cliente": c.get("col_id_cliente", 4) - 1,
+                "nombre": c.get("col_nombre", 5) - 1,
+                "tel": c.get("col_tel", 6) - 1,
+                "direccion": c.get("col_direccion", 7) - 1,
+                "origen": c.get("col_origen", 8) - 1,
+                "monto": c.get("col_monto", 9) - 1,
+                "servicio": c.get("col_servicio", 10) - 1,
+                "comentarios": c.get("col_comentarios", 11) - 1,
+            }
+
         usuario_resp = client.table("usuarios")\
             .select("template_pdf, logo_url, app_nombre, app_icono, ciudad")\
             .eq("id", empresa_id)\
@@ -609,6 +632,7 @@ def cargar_config(empresa_id, access_token):
             "app_nombre": app_nombre,
             "app_icono": app_icono,
             "ciudad": ciudad,
+            "sheet_columnas": sheet_columnas,
         }
 
     except Exception as e:
@@ -633,6 +657,7 @@ if st.session_state.get("usuario") and config_usuario:
     USUARIOS[st.session_state["usuario"]]["app_nombre"] = config_usuario.get("app_nombre", "CRM Dashboard")
     USUARIOS[st.session_state["usuario"]]["app_icono"] = config_usuario.get("app_icono", "📊")
     USUARIOS[st.session_state["usuario"]]["ciudad"] = config_usuario.get("ciudad", "")
+    USUARIOS[st.session_state["usuario"]]["sheet_columnas"] = config_usuario.get("sheet_columnas", {})
 
 NOMBRE_APP = USUARIOS.get(st.session_state["usuario"], {}).get("app_nombre", "CRM Dashboard")
 
@@ -1679,6 +1704,7 @@ elif pagina == "Agenda":
     PRECIOS = cotizador.get("precios", {})
     PAQUETES_COT = cotizador.get("paquetes", [])
     MINIMO = cotizador.get("minimo", 950)
+    SHEET_COLS = USUARIOS[st.session_state["usuario"]].get("sheet_columnas", {})
 
     def get_supabase_auth():
         client_auth = create_client(
@@ -1730,6 +1756,26 @@ elif pagina == "Agenda":
         except:
             return 0
 
+    def construir_fila_sheet(siguiente_folio, folio_interno, fecha_str, id_cli_limpio,
+                              nombre, tel, direccion, origen, monto, servicio, comentarios):
+        # Número de columnas total
+        max_col = max(SHEET_COLS.values()) + 1 if SHEET_COLS else 14
+        fila = [""] * max(max_col, 14)
+
+        fila[SHEET_COLS.get("folio_sistema", 0)] = siguiente_folio
+        fila[SHEET_COLS.get("folio_interno", 1)] = folio_interno
+        fila[SHEET_COLS.get("fecha", 2)] = fecha_str
+        fila[SHEET_COLS.get("id_cliente", 3)] = id_cli_limpio
+        fila[SHEET_COLS.get("nombre", 4)] = nombre
+        fila[SHEET_COLS.get("tel", 5)] = tel
+        fila[SHEET_COLS.get("direccion", 6)] = direccion
+        fila[SHEET_COLS.get("origen", 7)] = origen
+        fila[SHEET_COLS.get("monto", 8)] = monto
+        fila[SHEET_COLS.get("servicio", 9)] = servicio
+        fila[SHEET_COLS.get("comentarios", 10)] = comentarios
+
+        return fila
+
     df_a = df.copy()
     df_a["Fecha"] = pd.to_datetime(df_a["Fecha"], errors="coerce")
     df_a["Monto"] = pd.to_numeric(df_a["Monto"], errors="coerce")
@@ -1778,7 +1824,12 @@ elif pagina == "Agenda":
                     tel_completo = "52" + tel
                     hora_msg = f" entre las {rango}" if rango else ""
                     fecha_completa = f"{fecha_row.strftime('%d/%m/%Y')} ({fecha_txt})" if fecha_row else ""
-                    mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para el {fecha_completa}{hora_msg}."
+                    mensaje_confirmacion = plantillas.get("confirmacion", "Hola {nombre}, confirmamos tu servicio con {empresa} para el {fecha}{hora}.").format(
+                        nombre=limpiar_valor(row.get("Nombre")),
+                        empresa=empresa,
+                        fecha=fecha_completa,
+                        hora=hora_msg
+                    )
                     url = f"https://wa.me/{tel_completo}?text={urllib.parse.quote(mensaje_confirmacion)}"
                     st.markdown(f"[💬 Enviar WhatsApp]({url})")
                 else:
@@ -2136,11 +2187,19 @@ elif pagina == "Agenda":
                 if not realizado:
                     hora_msg = f" entre las {rango_row}" if rango_row else ""
                     fecha_completa_ev = f"{fecha_row.strftime('%d/%m/%Y')} ({fecha_txt})" if fecha_row else ""
-                    mensaje_confirmacion = f"Hola {limpiar_valor(row.get('Nombre'))}, confirmamos tu servicio con {empresa} para el {fecha_completa_ev}{hora_msg}."
+                    mensaje_confirmacion = plantillas.get("confirmacion", "Hola {nombre}, confirmamos tu servicio con {empresa} para el {fecha}{hora}.").format(
+                        nombre=limpiar_valor(row.get("Nombre")),
+                        empresa=empresa,
+                        fecha=fecha_completa_ev,
+                        hora=hora_msg
+                    )
                     url_confirmacion = f"https://wa.me/{tel_ev_completo}?text={urllib.parse.quote(mensaje_confirmacion)}"
                     st.markdown(f"[💬 Enviar recordatorio]({url_confirmacion})")
                 else:
-                    msg_sat = f"Hola {limpiar_valor(row.get('Nombre'))}, gracias por confiar en {empresa} 😊 ¿Cómo quedó tu servicio? Tu opinión nos ayuda a mejorar."
+                    msg_sat = plantillas.get("satisfaccion", "Hola {nombre}, gracias por confiar en {empresa} 😊 ¿Cómo quedó tu servicio?").format(
+                        nombre=limpiar_valor(row.get("Nombre")),
+                        empresa=empresa
+                    )
                     url_sat = f"https://wa.me/{tel_ev_completo}?text={urllib.parse.quote(msg_sat)}"
                     st.link_button("💬 Enviar WhatsApp de satisfacción", url_sat)
 
@@ -2223,17 +2282,19 @@ elif pagina == "Agenda":
                             ])
                             serv_sheets = limpiar_valor(row.get("Servicio"))
 
-                            nueva_fila = [
-                                siguiente_folio, folio_interno,
-                                row["Fecha"].strftime("%m/%d/%Y"),
-                                id_cli_limpio,
-                                limpiar_valor(row.get("Nombre")),
-                                limpiar_valor(row.get("Tel")),
-                                limpiar_valor(row.get("Dirección")),
-                                origen_real,
-                                float(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0,
-                                serv_sheets, "", "", "", ""
-                            ]
+                            nueva_fila = construir_fila_sheet(
+                                siguiente_folio=siguiente_folio,
+                                folio_interno=folio_interno,
+                                fecha_str=row["Fecha"].strftime("%m/%d/%Y"),
+                                id_cli_limpio=id_cli_limpio,
+                                nombre=limpiar_valor(row.get("Nombre")),
+                                tel=limpiar_valor(row.get("Tel")),
+                                direccion=limpiar_valor(row.get("Dirección")),
+                                origen=origen_real,
+                                monto=float(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0,
+                                servicio=serv_sheets,
+                                comentarios=""
+                            )
 
                             col_c = worksheet.col_values(3)
                             datos_col_c = col_c[1:]
@@ -2279,7 +2340,10 @@ elif pagina == "Agenda":
                 tel_ws = str(datos_ws["tel"]).replace("-", "").replace(" ", "")
                 if tel_ws and tel_ws not in ["nan", ""]:
                     tel_ws = "52" + tel_ws
-                    msg_ws = f"Hola {datos_ws['nombre']}, gracias por confiar en {datos_ws['empresa']} 😊 ¿Cómo quedó tu servicio? Tu opinión nos ayuda a mejorar."
+                    msg_ws = plantillas.get("satisfaccion", "Hola {nombre}, gracias por confiar en {empresa} 😊").format(
+                        nombre=datos_ws["nombre"],
+                        empresa=datos_ws["empresa"]
+                    )
                     url_ws = f"https://wa.me/{tel_ws}?text={urllib.parse.quote(msg_ws)}"
                     st.link_button("💬 Enviar WhatsApp de satisfacción", url_ws)
 
@@ -2327,12 +2391,19 @@ elif pagina == "Agenda":
                                             fila_sheet = i + 1
                                             break
                                     if fila_sheet:
-                                        worksheet.update(f"E{fila_sheet}", [[edit_nombre]])
-                                        worksheet.update(f"F{fila_sheet}", [[edit_tel]])
-                                        worksheet.update(f"G{fila_sheet}", [[edit_dir]])
-                                        worksheet.update(f"H{fila_sheet}", [[edit_origen]])
-                                        worksheet.update(f"I{fila_sheet}", [[float(edit_monto)]])
-                                        worksheet.update(f"J{fila_sheet}", [[edit_servicio]])
+                                        n = SHEET_COLS.get("nombre", 4) + 1
+                                        t_ = SHEET_COLS.get("tel", 5) + 1
+                                        d = SHEET_COLS.get("direccion", 6) + 1
+                                        o = SHEET_COLS.get("origen", 7) + 1
+                                        m = SHEET_COLS.get("monto", 8) + 1
+                                        s = SHEET_COLS.get("servicio", 9) + 1
+                                        from openpyxl.utils import get_column_letter
+                                        worksheet.update(f"{get_column_letter(n)}{fila_sheet}", [[edit_nombre]])
+                                        worksheet.update(f"{get_column_letter(t_)}{fila_sheet}", [[edit_tel]])
+                                        worksheet.update(f"{get_column_letter(d)}{fila_sheet}", [[edit_dir]])
+                                        worksheet.update(f"{get_column_letter(o)}{fila_sheet}", [[edit_origen]])
+                                        worksheet.update(f"{get_column_letter(m)}{fila_sheet}", [[float(edit_monto)]])
+                                        worksheet.update(f"{get_column_letter(s)}{fila_sheet}", [[edit_servicio]])
                                         st.success("✅ Actualizado en Supabase y Sheets.")
                                     else:
                                         st.success("✅ Actualizado en Supabase.")
