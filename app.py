@@ -1434,7 +1434,7 @@ elif pagina == "Follow Up":
         "promoción": plantillas_usuario.get("promocion", "Hola {nombre}, en {empresa} tenemos una promoción especial disponible. ¿Te interesa aprovecharla?"),
         "reactivación": plantillas_usuario.get("reactivacion", "Hola {nombre}, te extrañamos en {empresa} 😄 Tenemos disponibilidad esta semana. ¿Agendamos?"),
     }
-
+    st.write("DEBUG plantillas:", plantillas_usuario)
     plantilla_masiva = st.selectbox("Plantilla:", list(PLANTILLAS_MENSAJES.keys()), key="plantilla_masiva_followup")
     mensaje_masivo_preview = PLANTILLAS_MENSAJES[plantilla_masiva].format(nombre="[Nombre]", empresa=st.session_state.get("empresa", "nuestro negocio"))
     mensaje_masivo_edit = st.text_area("Edita el mensaje ({nombre} y {empresa} se reemplazan automáticamente):", value=mensaje_masivo_preview, key="mensaje_masivo_edit")
