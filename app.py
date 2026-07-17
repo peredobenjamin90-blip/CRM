@@ -509,8 +509,90 @@ if "cache_limpiado" not in st.session_state:
     st.cache_data.clear()
     st.session_state["cache_limpiado"] = True
 
+# ── CONFIG DINÁMICA ──
 app_config = USUARIOS.get(st.session_state["usuario"], {}).get("app", {})
 NOMBRE_APP = app_config.get("nombre", "CRM Dashboard")
+
+# ── CARGAR CONFIG DESDE SUPABASE ──
+@st.cache_data(ttl=600)
+def cargar_config(empresa_id):
+    try:
+        sheets_resp = supabase.table("usuario_sheets")\
+            .select("año, sheet_id")\
+            .eq("empresa_id", empresa_id)\
+            .execute()
+        sheets = {int(r["año"]): r["sheet_id"] for r in sheets_resp.data} if sheets_resp.data else {}
+
+        finanzas_resp = supabase.table("usuario_finanzas")\
+            .select("año, url")\
+            .eq("empresa_id", empresa_id)\
+            .execute()
+        finanzas = {int(r["año"]): r["url"] for r in finanzas_resp.data} if finanzas_resp.data else {}
+
+        origenes_resp = supabase.table("usuario_origenes")\
+            .select("clave, valor")\
+            .eq("empresa_id", empresa_id)\
+            .execute()
+        origenes = {r["clave"]: r["valor"] for r in origenes_resp.data} if origenes_resp.data else {}
+
+        plantillas_resp = supabase.table("usuario_plantillas")\
+            .select("clave, mensaje")\
+            .eq("empresa_id", empresa_id)\
+            .execute()
+        plantillas = {r["clave"]: r["mensaje"] for r in plantillas_resp.data} if plantillas_resp.data else {}
+
+        categorias_resp = supabase.table("usuario_categorias")\
+            .select("categoria, keywords")\
+            .eq("empresa_id", empresa_id)\
+            .execute()
+        categorias = {r["categoria"]: r["keywords"] for r in categorias_resp.data} if categorias_resp.data else {}
+
+        cotizador_resp = supabase.table("usuario_cotizador")\
+            .select("*")\
+            .eq("empresa_id", empresa_id)\
+            .limit(1)\
+            .execute()
+        cotizador = {}
+        if cotizador_resp.data:
+            c = cotizador_resp.data[0]
+            cotizador = {
+                "paquetes": c.get("paquetes", []),
+                "minimo": c.get("minimo", 950),
+                "intro": c.get("intro", ""),
+                "purt_descripcion": c.get("purt_descripcion", ""),
+                "purt_costo": c.get("purt_costo", 0),
+                "cierre": c.get("cierre", ""),
+                "firma": c.get("firma", ""),
+                "servicios_cantidad": c.get("servicios_cantidad", []),
+                "servicios_plazas": c.get("servicios_plazas", []),
+                "servicios_sillas": c.get("servicios_sillas", []),
+            }
+
+        return {
+            "sheets": sheets,
+            "finanzas": finanzas,
+            "origenes": origenes,
+            "plantillas": plantillas,
+            "categorias": categorias,
+            "cotizador": cotizador,
+        }
+
+    except Exception as e:
+        st.error(f"Error cargando config: {e}")
+        return {}
+
+empresa_id_config = st.session_state.get("empresa_id", "")
+config_usuario = cargar_config(empresa_id_config)
+
+if st.session_state.get("usuario") and config_usuario:
+    if st.session_state["usuario"] not in USUARIOS:
+        USUARIOS[st.session_state["usuario"]] = {}
+    USUARIOS[st.session_state["usuario"]]["sheets"] = config_usuario.get("sheets", {})
+    USUARIOS[st.session_state["usuario"]]["finanzas"] = config_usuario.get("finanzas", {})
+    USUARIOS[st.session_state["usuario"]]["origenes"] = config_usuario.get("origenes", {})
+    USUARIOS[st.session_state["usuario"]]["plantillas"] = config_usuario.get("plantillas", {})
+    USUARIOS[st.session_state["usuario"]]["categorias"] = config_usuario.get("categorias", {})
+    USUARIOS[st.session_state["usuario"]]["cotizador"] = config_usuario.get("cotizador", {})
 
 # ── CARGAR DATOS DESDE SUPABASE ──
 @st.cache_data(ttl=300)
