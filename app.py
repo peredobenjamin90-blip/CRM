@@ -706,12 +706,8 @@ with st.sidebar:
     logo_url = USUARIOS[st.session_state["usuario"]].get("logo_url")
     if logo_url:
         st.image(logo_url, width=120)
-logo_url = USUARIOS[st.session_state["usuario"]].get("logo_url")
-if logo_url:
-    st.image(logo_url, width=120)
     st.markdown(f"<h3 style='color:white'>{st.session_state['empresa']}</h3>", unsafe_allow_html=True)
     st.markdown("---")
-
     paginas = ["Resumen", "Ventas", "Clientes", "Servicios", "Follow Up", "Agenda", "Cotizaciones", "Chat"]
 
     if "pagina" not in st.session_state:
