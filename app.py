@@ -568,6 +568,20 @@ def cargar_config(empresa_id):
                 "servicios_sillas": c.get("servicios_sillas", []),
             }
 
+        # Precios cotizador
+        precios_resp = supabase.table("usuario_cotizador_precios")\
+            .select("servicio, paquete, precio")\
+            .eq("empresa_id", empresa_id)\
+            .execute()
+        precios = {}
+        if precios_resp.data:
+            for r in precios_resp.data:
+                if r["servicio"] not in precios:
+                    precios[r["servicio"]] = {}
+                precios[r["servicio"]][r["paquete"]] = float(r["precio"])
+        if cotizador:
+            cotizador["precios"] = precios
+
         return {
             "sheets": sheets,
             "finanzas": finanzas,
