@@ -597,7 +597,12 @@ def cargar_config(empresa_id):
 
 empresa_id_config = st.session_state.get("empresa_id", "")
 config_usuario = cargar_config(empresa_id_config)
-
+st.write("DEBUG config:", {
+    "sheets": bool(config_usuario.get("sheets")),
+    "cotizador_paquetes": config_usuario.get("cotizador", {}).get("paquetes"),
+    "categorias_keys": list(config_usuario.get("categorias", {}).keys()),
+    "precios_keys": list(config_usuario.get("cotizador", {}).get("precios", {}).keys())[:3]
+})
 if st.session_state.get("usuario") and config_usuario:
     if st.session_state["usuario"] not in USUARIOS:
         USUARIOS[st.session_state["usuario"]] = {}
