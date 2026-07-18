@@ -508,8 +508,6 @@ if "usuario" not in st.session_state:
 if "cache_limpiado" not in st.session_state:
     st.cache_data.clear()
     st.session_state["cache_limpiado"] = True
-
-# ── CONFIG DINÁMICA ──
 # ── CONFIG DINÁMICA ──
 NOMBRE_APP = USUARIOS.get(st.session_state["usuario"], {}).get("app_nombre", "CRM Dashboard")
 
@@ -610,7 +608,7 @@ def cargar_config(empresa_id, access_token):
             }
 
         usuario_resp = client.table("usuarios")\
-            .select("template_pdf, logo_url, app_nombre, app_icono, ciudad")\
+            .select("template_pdf, logo_url, app_nombre, app_icono, ciudad, estadisticas_hoja")\
             .eq("id", empresa_id)\
             .single()\
             .execute()
@@ -619,6 +617,7 @@ def cargar_config(empresa_id, access_token):
         app_nombre = usuario_resp.data.get("app_nombre", "CRM Dashboard") if usuario_resp.data else "CRM Dashboard"
         app_icono = usuario_resp.data.get("app_icono", "📊") if usuario_resp.data else "📊"
         ciudad = usuario_resp.data.get("ciudad", "") if usuario_resp.data else ""
+        estadisticas_hoja = usuario_resp.data.get("estadisticas_hoja", "Estadisticas finales") if usuario_resp.data else "Estadisticas finales"
 
         return {
             "sheets": sheets,
@@ -633,6 +632,7 @@ def cargar_config(empresa_id, access_token):
             "app_icono": app_icono,
             "ciudad": ciudad,
             "sheet_columnas": sheet_columnas,
+            "estadisticas_hoja": estadisticas_hoja,
         }
 
     except Exception as e:
@@ -658,6 +658,7 @@ if st.session_state.get("usuario") and config_usuario:
     USUARIOS[st.session_state["usuario"]]["app_icono"] = config_usuario.get("app_icono", "📊")
     USUARIOS[st.session_state["usuario"]]["ciudad"] = config_usuario.get("ciudad", "")
     USUARIOS[st.session_state["usuario"]]["sheet_columnas"] = config_usuario.get("sheet_columnas", {})
+    USUARIOS[st.session_state["usuario"]]["estadisticas_hoja"] = config_usuario.get("estadisticas_hoja", "Estadisticas finales")
 
 NOMBRE_APP = USUARIOS.get(st.session_state["usuario"], {}).get("app_nombre", "CRM Dashboard")
 
@@ -979,20 +980,21 @@ elif pagina == "Ventas":
     st.title("Análisis de Ventas")
 
     # ── ESTADÍSTICAS FINANCIERAS DESDE SHEETS ──
-    st.subheader("💰 Margen de ganancia mensual 2026")
+    st.subheader("💰 Margen de ganancia mensual")
 
     finanzas_usuario = USUARIOS[st.session_state["usuario"]].get("finanzas", {})
     sheets_usuario = USUARIOS[st.session_state["usuario"]].get("sheets", {})
+    nombre_hoja_stats = USUARIOS[st.session_state["usuario"]].get("estadisticas_hoja", "Estadisticas finales")
 
     if not finanzas_usuario:
         st.info("No hay datos financieros configurados para esta cuenta.")
     else:
         @st.cache_data(ttl=3600)
-        def cargar_estadisticas_finales(_client_gs, sheet_id_stats):
+        def cargar_estadisticas_finales(_client_gs, sheet_id_stats, nombre_hoja):
             try:
                 sh = _client_gs.open_by_key(sheet_id_stats)
                 try:
-                    ws = sh.worksheet("Estadisticas finales")
+                    ws = sh.worksheet(nombre_hoja)
                 except:
                     return pd.DataFrame()
                 datos = ws.get_all_values()
@@ -1015,13 +1017,12 @@ elif pagina == "Ventas":
             except Exception as e:
                 return pd.DataFrame()
 
-        # Usar sheet de ventas 2026 que tiene Estadisticas finales
         sheet_id_stats = sheets_usuario.get(2026) or (sheets_usuario.get(max(sheets_usuario.keys())) if sheets_usuario else None)
 
         if sheet_id_stats:
             try:
                 client_gs_stats = get_gspread_client()
-                df_stats = cargar_estadisticas_finales(client_gs_stats, sheet_id_stats)
+                df_stats = cargar_estadisticas_finales(client_gs_stats, sheet_id_stats, nombre_hoja_stats)
             except:
                 df_stats = pd.DataFrame()
 
@@ -1062,13 +1063,12 @@ elif pagina == "Ventas":
                 else:
                     st.info("Aún no hay datos financieros para este año.")
             else:
-                st.info("No se encontró la hoja 'Estadisticas finales' en el Sheet configurado.")
+                st.info("No se encontró la hoja de estadísticas en el Sheet configurado.")
         else:
             st.info("No hay Sheet configurado.")
 
     st.markdown("---")
 
-    # ── VENTAS POR AÑO ──
     ventas_año = df[df["Año"].isin(años_sin_2026)].groupby("Año")["Monto"].sum().reset_index()
     ventas_año.columns = ["Año", "Total"]
     st.subheader("Ventas totales por año")
