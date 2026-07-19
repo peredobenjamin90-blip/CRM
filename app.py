@@ -1903,7 +1903,7 @@ elif pagina == "Agenda":
 
     ORIGENES = list(USUARIOS[st.session_state["usuario"]].get("origenes", {}).keys()) or ["Rep", "Int", "Rec"]
     PAQUETES = [""] + PAQUETES_COT
-    SERVICIOS_LISTA = [""] + list(PRECIOS.keys())
+    SERVICIOS_LISTA = [""] + list(PRECIOS.keys()) + ["Otro"]
     N_RENGLONES = 8
 
     nombre = st.text_input("Nombre del cliente", value=nombre_default, key=f"nombre_{st.session_state['form_key']}")
@@ -1911,7 +1911,7 @@ elif pagina == "Agenda":
     direccion = st.text_input("Dirección", value=dir_default, key=f"dir_{st.session_state['form_key']}")
 
     st.markdown("**🧼 Servicios**")
-    st.caption("El precio se calcula automáticamente")
+    st.caption("El precio se autocompleta desde el cotizador, pero puedes editarlo")
 
     h1, h2, h3, h4, h5 = st.columns([4, 1, 2, 2, 2])
     h1.markdown("**Servicio**")
@@ -1925,20 +1925,40 @@ elif pagina == "Agenda":
         c1, c2, c3, c4, c5 = st.columns([4, 1, 2, 2, 2])
         with c1:
             serv_i = st.selectbox(f"s{i}", SERVICIOS_LISTA, label_visibility="collapsed", key=f"serv_{i}_{st.session_state['form_key']}")
+            desc_otro = ""
+            if serv_i == "Otro":
+                desc_otro = st.text_input(
+                    f"desc{i}", placeholder="Ej: carriola, cojín, base de cama, cama de perro...",
+                    label_visibility="collapsed", key=f"descotro_{i}_{st.session_state['form_key']}"
+                )
         with c2:
             cant_i = st.number_input(f"c{i}", min_value=0, value=0, label_visibility="collapsed", key=f"cant_{i}_{st.session_state['form_key']}")
         with c3:
-            paq_i = st.selectbox(f"p{i}", PAQUETES, label_visibility="collapsed", key=f"paq_{i}_{st.session_state['form_key']}")
-        p_unit = get_precio(serv_i, paq_i, 1) if serv_i and paq_i else 0
-        subtotal_i = get_precio(serv_i, paq_i, int(cant_i)) if serv_i and paq_i and cant_i > 0 else 0
+            if serv_i == "Otro":
+                paq_i = ""
+                st.markdown("—")
+            else:
+                paq_i = st.selectbox(f"p{i}", PAQUETES, label_visibility="collapsed", key=f"paq_{i}_{st.session_state['form_key']}")
+
+        # Precio sugerido desde el cotizador (0 para "Otro" o si falta paquete)
+        precio_default = get_precio(serv_i, paq_i, 1) if (serv_i and serv_i != "Otro" and paq_i) else 0.0
+
         with c4:
-            st.markdown(f"**${p_unit:,.0f}**" if p_unit else "—")
+            # La key incluye servicio+paquete: al cambiarlos se recarga el precio del cotizador,
+            # pero siempre lo puedes sobrescribir a mano.
+            p_unit = st.number_input(
+                f"pu{i}", min_value=0.0, value=float(precio_default), step=1.0,
+                label_visibility="collapsed",
+                key=f"punit_{i}_{serv_i}_{paq_i}_{st.session_state['form_key']}"
+            )
+        subtotal_i = p_unit * int(cant_i) if serv_i and cant_i > 0 else 0
         with c5:
             st.markdown(f"**${subtotal_i:,.0f}**" if subtotal_i else "—")
 
         if serv_i:
+            nombre_servicio = desc_otro.strip() if (serv_i == "Otro" and desc_otro.strip()) else serv_i
             renglones.append({
-                "servicio": serv_i,
+                "servicio": nombre_servicio,
                 "cantidad": int(cant_i),
                 "paquete": paq_i,
                 "precio_unitario": p_unit,
