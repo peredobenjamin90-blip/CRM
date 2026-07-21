@@ -1938,34 +1938,32 @@ elif pagina == "Agenda":
                     label_visibility="collapsed", key=f"descotro_{i}_{st.session_state['form_key']}"
                 )
         with c2:
-            cant_i = st.number_input(f"c{i}", min_value=0, value=0, label_visibility="collapsed", key=f"cant_{i}_{st.session_state['form_key']}")
+            cant_i = st.number_input(
+                f"c{i}", min_value=0.0, value=0.0, step=0.5, format="%.2f",
+                label_visibility="collapsed", key=f"cant_{i}_{st.session_state['form_key']}"
+            )
         with c3:
-            if serv_i == "Otro":
-                paq_i = ""
-                st.markdown("—")
-            else:
-                paq_i = st.selectbox(f"p{i}", PAQUETES, label_visibility="collapsed", key=f"paq_{i}_{st.session_state['form_key']}")
+            paq_i = st.selectbox(f"p{i}", PAQUETES, label_visibility="collapsed", key=f"paq_{i}_{st.session_state['form_key']}")
 
         # Precio sugerido desde el cotizador (0 para "Otro" o si falta paquete)
         precio_default = get_precio(serv_i, paq_i, 1) if (serv_i and serv_i != "Otro" and paq_i) else 0.0
 
         with c4:
-            # La key incluye servicio+paquete: al cambiarlos se recarga el precio del cotizador,
-            # pero siempre lo puedes sobrescribir a mano.
             p_unit = st.number_input(
                 f"pu{i}", min_value=0.0, value=float(precio_default), step=1.0,
                 label_visibility="collapsed",
                 key=f"punit_{i}_{serv_i}_{paq_i}_{st.session_state['form_key']}"
             )
-        subtotal_i = p_unit * int(cant_i) if serv_i and cant_i > 0 else 0
+        subtotal_i = p_unit * cant_i if (serv_i and cant_i > 0) else 0
         with c5:
             st.markdown(f"**${subtotal_i:,.0f}**" if subtotal_i else "—")
 
         if serv_i:
+            cant_val = int(cant_i) if float(cant_i).is_integer() else round(cant_i, 2)
             nombre_servicio = desc_otro.strip() if (serv_i == "Otro" and desc_otro.strip()) else serv_i
             renglones.append({
                 "servicio": nombre_servicio,
-                "cantidad": int(cant_i),
+                "cantidad": cant_val,
                 "paquete": paq_i,
                 "precio_unitario": p_unit,
                 "subtotal": subtotal_i
