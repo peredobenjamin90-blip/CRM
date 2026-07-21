@@ -1883,10 +1883,16 @@ elif pagina == "Agenda":
         for _, fila in clientes_filtrados.head(10).iterrows():
             label = f"[{int(fila['ID Cliente'])}] {fila['Nombre']} — {fila['Telefonos']}"
             if st.button(label, key=f"sel_cliente_{int(fila['ID Cliente'])}_{st.session_state['form_key']}"):
+                fk = st.session_state['form_key']
+                dir_val = str(fila["Direccion"]) if pd.notnull(fila["Direccion"]) else ""
                 st.session_state["agenda_cliente_id"] = int(fila["ID Cliente"])
                 st.session_state["agenda_cliente_nombre"] = fila["Nombre"]
                 st.session_state["agenda_cliente_tel"] = fila["Telefonos"]
-                st.session_state["agenda_cliente_dir"] = str(fila["Direccion"]) if pd.notnull(fila["Direccion"]) else ""
+                st.session_state["agenda_cliente_dir"] = dir_val
+                # Escribir directo en las keys de los widgets para que SÍ se muestren
+                st.session_state[f"nombre_{fk}"] = fila["Nombre"]
+                st.session_state[f"tel_{fk}"] = fila["Telefonos"]
+                st.session_state[f"dir_{fk}"] = dir_val
                 st.rerun()
 
     id_cliente_default = None
@@ -1906,9 +1912,9 @@ elif pagina == "Agenda":
     SERVICIOS_LISTA = [""] + list(PRECIOS.keys()) + ["Otro"]
     N_RENGLONES = 8
 
-    nombre = st.text_input("Nombre del cliente", value=nombre_default, key=f"nombre_{st.session_state['form_key']}")
-    telefono = st.text_input("Teléfono(s)", value=tel_default, key=f"tel_{st.session_state['form_key']}")
-    direccion = st.text_input("Dirección", value=dir_default, key=f"dir_{st.session_state['form_key']}")
+    nombre = st.text_input("Nombre del cliente", key=f"nombre_{st.session_state['form_key']}")
+    telefono = st.text_input("Teléfono(s)", key=f"tel_{st.session_state['form_key']}")
+    direccion = st.text_input("Dirección", key=f"dir_{st.session_state['form_key']}")
 
     st.markdown("**🧼 Servicios**")
     st.caption("El precio se autocompleta desde el cotizador, pero puedes editarlo")
@@ -2078,6 +2084,7 @@ elif pagina == "Agenda":
                             items=renglones_validos,
                             subtotal=subtotal_final,
                             descuento=monto_descuento,
+                            descuento_pct=descuento_pct,
                             iva=iva,
                             total=total_final,
                             ciudad=USUARIOS[st.session_state["usuario"]].get("ciudad", ""),
@@ -2396,17 +2403,18 @@ elif pagina == "Agenda":
                             "origen": edit_origen
                         }).eq("id", id_click).execute()
 
-                        folio_actual = limpiar_valor(row.get("folio"))
+                        folio_actual = str(limpiar_valor(row.get("folio")) or limpiar_valor(row.get("Folio")) or "").strip()
                         if folio_actual and realizado and SHEET_IDS:
                             try:
-                                año_row = int(row.get("Año", hoy.year))
+                                año_row = int(row.get("Año", row["Fecha"].year))
                                 if año_row in SHEET_IDS:
                                     client_gs = get_gspread_client()
                                     sh = client_gs.open_by_key(SHEET_IDS[año_row])
                                     worksheet = sh.get_worksheet(0)
-                                    col_b = worksheet.col_values(2)
+                                    col_folio_idx = SHEET_COLS.get("folio_interno", 1) + 1
+                                    col_folios = worksheet.col_values(col_folio_idx)
                                     fila_sheet = None
-                                    for i, val in enumerate(col_b):
+                                    for i, val in enumerate(col_folios):
                                         if str(val).strip() == folio_actual:
                                             fila_sheet = i + 1
                                             break
@@ -2426,11 +2434,13 @@ elif pagina == "Agenda":
                                         worksheet.update(f"{get_column_letter(s)}{fila_sheet}", [[edit_servicio]])
                                         st.success("✅ Actualizado en Supabase y Sheets.")
                                     else:
-                                        st.success("✅ Actualizado en Supabase.")
+                                        st.warning(f"Actualizado en Supabase, pero NO encontré el folio '{folio_actual}' en la columna {col_folio_idx} del Sheet {año_row}.")
+                                else:
+                                    st.warning(f"Actualizado en Supabase, pero el año {año_row} no está en SHEET_IDS ({list(SHEET_IDS.keys())}).")
                             except Exception as e_sheet:
                                 st.warning(f"Actualizado en Supabase pero error en Sheets: {e_sheet}")
                         else:
-                            st.success("✅ Servicio actualizado correctamente.")
+                            st.warning(f"Solo se actualizó en Supabase. Motivo → folio='{folio_actual}', realizado={realizado}, sheets={bool(SHEET_IDS)}.")
 
                         st.cache_data.clear()
                         del st.session_state["evento_seleccionado"]

@@ -15,6 +15,7 @@ def generar_hoja_servicio(
     items=None,
     subtotal=0,
     descuento=0,
+    descuento_pct=0,
     iva=0,
     total=0,
     tecnico="",
@@ -95,13 +96,32 @@ def generar_hoja_servicio(
         if sub_txt:
             campos_items.append((663, y, 762, y + dy, sub_txt, 9))
 
+    # --- Totales (coordenadas del template Maxi Clean) ---
+    # subtotal (755) y total (840) ya caen bien; ajusta Y_DESCUENTO / Y_IVA si no aterrizan en su fila
+    Y_SUBTOTAL = 755
+    Y_DESCUENTO = 783
+    Y_IVA = 811
+    Y_TOTAL = 840
+    dy_tot = 14
+    X_VAL_1, X_VAL_2 = 663, 762      # celda del valor (derecha)
+    X_LBL_1, X_LBL_2 = 586, 660      # celda de la etiqueta (izquierda)
+
     campos_totales = []
-    if subtotal > 0:
-        campos_totales.append((663, 755, 762, 769, f"${subtotal:,.0f}", 9))
-    if descuento > 0:
-        campos_totales.append((663, 769, 762, 783, f"-${descuento:,.0f}", 9))
-    if total > 0:
-        campos_totales.append((663, 840, 762, 854, f"${total:,.0f}", 9))
+    # Subtotal (la etiqueta ya viene impresa en el template)
+    if subtotal and subtotal > 0:
+        campos_totales.append((X_VAL_1, Y_SUBTOTAL, X_VAL_2, Y_SUBTOTAL + dy_tot, f"${subtotal:,.0f}", 9))
+    # Descuento: etiqueta + valor (el template no trae la etiqueta impresa)
+    if descuento and descuento > 0:
+        etiqueta_desc = f"Descuento {descuento_pct:.0f}%" if descuento_pct else "Descuento"
+        campos_totales.append((X_LBL_1, Y_DESCUENTO, X_LBL_2, Y_DESCUENTO + dy_tot, etiqueta_desc, 8))
+        campos_totales.append((X_VAL_1, Y_DESCUENTO, X_VAL_2, Y_DESCUENTO + dy_tot, f"-${descuento:,.0f}", 9))
+    # IVA: etiqueta + valor
+    if iva and iva > 0:
+        campos_totales.append((X_LBL_1, Y_IVA, X_LBL_2, Y_IVA + dy_tot, "IVA 16%", 8))
+        campos_totales.append((X_VAL_1, Y_IVA, X_VAL_2, Y_IVA + dy_tot, f"${iva:,.0f}", 9))
+    # Total (la etiqueta ya viene impresa)
+    if total and total > 0:
+        campos_totales.append((X_VAL_1, Y_TOTAL, X_VAL_2, Y_TOTAL + dy_tot, f"${total:,.0f}", 9))
 
     packet = io.BytesIO()
     c = canvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
