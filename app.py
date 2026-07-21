@@ -2065,7 +2065,9 @@ elif pagina == "Agenda":
                         "año": fecha.year,
                         "realizado": False,
                         "hora": hora_str,
-                        "comentarios": renglones_json
+                        "comentarios": renglones_json,
+                        "descuento_pct": float(descuento_pct),
+                        "iva": bool(aplica_iva)
                     }).execute()
 
                     fecha_txt = fecha_relativa(fecha)
@@ -2240,11 +2242,22 @@ elif pagina == "Agenda":
 
                 if items_ev:
                     subtotal_ev = max(sum(r.get("subtotal", 0) for r in items_ev), MINIMO)
-                    total_ev = subtotal_ev
                 else:
                     items_ev = [{"servicio": limpiar_valor(row.get("Servicio")), "cantidad": 1, "paquete": "", "precio_unitario": 0, "subtotal": row.get("Monto", 0) or 0}]
                     subtotal_ev = row.get("Monto", 0) or 0
-                    total_ev = subtotal_ev
+
+                # Descuento e IVA guardados al agendar
+                try:
+                    desc_pct_ev = float(row.get("descuento_pct", 0) or row.get("Descuento_pct", 0) or 0)
+                except:
+                    desc_pct_ev = 0
+                iva_raw = row.get("iva", row.get("IVA", False))
+                aplica_iva_ev = str(iva_raw).strip().lower() in ["true", "1", "t", "yes", "si", "sí"]
+
+                monto_desc_ev = subtotal_ev * desc_pct_ev / 100
+                base_ev = subtotal_ev - monto_desc_ev
+                iva_ev = base_ev * 0.16 if aplica_iva_ev else 0
+                total_ev = base_ev + iva_ev
 
                 pdf_bytes_ev = generar_hoja_servicio(
                     nombre=limpiar_valor(row.get("Nombre")),
@@ -2256,8 +2269,9 @@ elif pagina == "Agenda":
                     origen=limpiar_valor(row.get("Origen")),
                     items=items_ev,
                     subtotal=subtotal_ev,
-                    descuento=0,
-                    iva=0,
+                    descuento=monto_desc_ev,
+                    descuento_pct=desc_pct_ev,
+                    iva=iva_ev,
                     total=total_ev,
                     ciudad=USUARIOS[st.session_state["usuario"]].get("ciudad", ""),
                     template_path=USUARIOS[st.session_state["usuario"]].get("template_pdf") or "assets/Hoja de servicio de Maxi Clean.pdf"
