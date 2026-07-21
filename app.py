@@ -2417,21 +2417,45 @@ elif pagina == "Agenda":
                             "origen": edit_origen
                         }).eq("id", id_click).execute()
 
-                        folio_actual = str(limpiar_valor(row.get("folio")) or limpiar_valor(row.get("Folio")) or "").strip()
-                        if folio_actual and realizado and SHEET_IDS:
+                        folio_actual = str(limpiar_valor(row.get("folio")) or "").strip()
+                        if realizado and SHEET_IDS:
                             try:
                                 año_row = int(row.get("Año", row["Fecha"].year))
                                 if año_row in SHEET_IDS:
                                     client_gs = get_gspread_client()
                                     sh = client_gs.open_by_key(SHEET_IDS[año_row])
                                     worksheet = sh.get_worksheet(0)
-                                    col_folio_idx = SHEET_COLS.get("folio_interno", 1) + 1
-                                    col_folios = worksheet.col_values(col_folio_idx)
+
+                                    def _norm_fecha(s):
+                                        for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d", "%m/%d/%y", "%d/%m/%y"):
+                                            try:
+                                                return datetime.strptime(str(s).strip(), fmt).date()
+                                            except:
+                                                continue
+                                        return None
+
                                     fila_sheet = None
-                                    for i, val in enumerate(col_folios):
-                                        if str(val).strip() == folio_actual:
-                                            fila_sheet = i + 1
-                                            break
+                                    # 1) Buscar por folio (si existe)
+                                    if folio_actual:
+                                        col_folio_idx = SHEET_COLS.get("folio_interno", 1) + 1
+                                        for i, val in enumerate(worksheet.col_values(col_folio_idx)):
+                                            if str(val).strip() == folio_actual:
+                                                fila_sheet = i + 1
+                                                break
+                                    # 2) Fallback: por nombre + fecha (para servicios sin folio)
+                                    if fila_sheet is None:
+                                        col_nombre = worksheet.col_values(SHEET_COLS.get("nombre", 4) + 1)
+                                        col_fecha = worksheet.col_values(SHEET_COLS.get("fecha", 2) + 1)
+                                        nombre_buscar = limpiar_valor(row.get("Nombre")).strip().lower()
+                                        fecha_target = row["Fecha"].date() if pd.notnull(row["Fecha"]) else None
+                                        n_filas = max(len(col_nombre), len(col_fecha))
+                                        for i in range(n_filas):
+                                            nv = col_nombre[i].strip().lower() if i < len(col_nombre) else ""
+                                            fv = col_fecha[i] if i < len(col_fecha) else ""
+                                            if nv == nombre_buscar and _norm_fecha(fv) == fecha_target:
+                                                fila_sheet = i + 1
+                                                break
+
                                     if fila_sheet:
                                         n = SHEET_COLS.get("nombre", 4) + 1
                                         t_ = SHEET_COLS.get("tel", 5) + 1
@@ -2446,15 +2470,15 @@ elif pagina == "Agenda":
                                         worksheet.update(f"{get_column_letter(o)}{fila_sheet}", [[edit_origen]])
                                         worksheet.update(f"{get_column_letter(m)}{fila_sheet}", [[float(edit_monto)]])
                                         worksheet.update(f"{get_column_letter(s)}{fila_sheet}", [[edit_servicio]])
-                                        st.success("✅ Actualizado en Supabase y Sheets.")
+                                        st.success(f"✅ Actualizado en Supabase y Sheets (fila {fila_sheet}).")
                                     else:
-                                        st.warning(f"Actualizado en Supabase, pero NO encontré el folio '{folio_actual}' en la columna {col_folio_idx} del Sheet {año_row}.")
+                                        st.warning(f"Actualizado en Supabase, pero no encontré la fila en el Sheet {año_row}. folio='{folio_actual}', nombre='{limpiar_valor(row.get('Nombre'))}', fecha='{row['Fecha'].strftime('%m/%d/%Y') if pd.notnull(row['Fecha']) else ''}'.")
                                 else:
                                     st.warning(f"Actualizado en Supabase, pero el año {año_row} no está en SHEET_IDS ({list(SHEET_IDS.keys())}).")
                             except Exception as e_sheet:
                                 st.warning(f"Actualizado en Supabase pero error en Sheets: {e_sheet}")
                         else:
-                            st.warning(f"Solo se actualizó en Supabase. Motivo → folio='{folio_actual}', realizado={realizado}, sheets={bool(SHEET_IDS)}.")
+                            st.warning(f"Solo se actualizó en Supabase. Motivo → realizado={realizado}, sheets={bool(SHEET_IDS)}.")
 
                         st.cache_data.clear()
                         del st.session_state["evento_seleccionado"]
