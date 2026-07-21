@@ -1946,7 +1946,15 @@ elif pagina == "Agenda":
             paq_i = st.selectbox(f"p{i}", PAQUETES, label_visibility="collapsed", key=f"paq_{i}_{st.session_state['form_key']}")
 
         # Precio sugerido desde el cotizador (0 para "Otro" o si falta paquete)
-        precio_default = get_precio(serv_i, paq_i, 1) if (serv_i and serv_i != "Otro" and paq_i) else 0.0
+        # Precio sugerido desde el cotizador
+        precios_serv = PRECIOS.get(serv_i, {}) if (serv_i and serv_i != "Otro") else {}
+        if paq_i and paq_i in precios_serv:
+            precio_default = precios_serv[paq_i]
+        elif precios_serv and len(set(precios_serv.values())) == 1:
+            # Servicio de precio único (PURT, Aspirado, Piel): mismo precio sin importar paquete
+            precio_default = next(iter(precios_serv.values()))
+        else:
+            precio_default = 0.0
 
         with c4:
             p_unit = st.number_input(
