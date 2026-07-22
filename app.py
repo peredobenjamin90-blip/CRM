@@ -2383,11 +2383,12 @@ elif pagina == "Agenda":
                 edit_tel = st.text_input("Teléfono", value=limpiar_valor(row.get("Tel")))
                 edit_dir = st.text_input("Dirección", value=limpiar_valor(row.get("Dirección")))
                 edit_servicio = st.text_input("Servicio", value=limpiar_valor(row.get("Servicio")))
-                edit_monto = st.number_input(
-                    "Monto", min_value=0.0,
-                    value=float(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0.0,
-                    step=1.0, format="%.2f"
-                )
+                monto_actual = float(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0.0
+                edit_monto_str = st.text_input("Monto", value=f"{monto_actual:g}")
+                try:
+                    edit_monto = float(str(edit_monto_str).replace(",", "").replace("$", "").strip())
+                except:
+                    edit_monto = monto_actual
                 origen_actual = limpiar_valor(row.get("Origen"), ORIGENES[0] if ORIGENES else "")
                 edit_origen = st.selectbox(
                     "Origen", ORIGENES,
