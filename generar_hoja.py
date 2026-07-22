@@ -127,9 +127,11 @@ def generar_hoja_servicio(
     c = canvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     c.setFillColorRGB(0, 0, 0)
 
+    FONT_BUMP = 2  # sube este número si quieres la letra aún más grande
     for (ix, iy, ix2, iy2, texto, fsize) in campos_fijos + campos_items + campos_totales:
         if not texto:
             continue
+        fsize = fsize + FONT_BUMP
         x0, y0, x1, y1 = to_pdf_coords(ix, iy, ix2, iy2)
         cy = y0 + (y1 - y0) / 2 - fsize / 3
         c.setFont("Helvetica", fsize)

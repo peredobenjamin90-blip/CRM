@@ -2362,11 +2362,6 @@ elif pagina == "Agenda":
                                 worksheet.format(f"A{primera_vacia}", {"backgroundColor": {"red": 0.2, "green": 0.8, "blue": 0.2}})
 
                             st.success("✅ Servicio marcado como realizado y guardado en Sheets.")
-                            st.session_state["whatsapp_satisfaccion"] = {
-                                "nombre": limpiar_valor(row.get("Nombre")),
-                                "tel": tel_ev,
-                                "empresa": empresa
-                            }
                         else:
                             st.success("✅ Marcado como realizado.")
 
@@ -2382,18 +2377,6 @@ elif pagina == "Agenda":
             else:
                 st.success("✅ Este servicio ya fue realizado y guardado en Sheets.")
 
-            if st.session_state.get("whatsapp_satisfaccion"):
-                datos_ws = st.session_state["whatsapp_satisfaccion"]
-                tel_ws = str(datos_ws["tel"]).replace("-", "").replace(" ", "")
-                if tel_ws and tel_ws not in ["nan", ""]:
-                    tel_ws = "52" + tel_ws
-                    msg_ws = plantillas.get("satisfaccion", "Hola {nombre}, gracias por confiar en {empresa} 😊").format(
-                        nombre=datos_ws["nombre"],
-                        empresa=datos_ws["empresa"]
-                    )
-                    url_ws = f"https://wa.me/{tel_ws}?text={urllib.parse.quote(msg_ws)}"
-                    st.link_button("💬 Enviar WhatsApp de satisfacción", url_ws)
-
             st.markdown("#### ✏️ Editar datos del servicio")
             with st.form("editar_servicio_form"):
                 edit_nombre = st.text_input("Nombre", value=limpiar_valor(row.get("Nombre")))
@@ -2401,8 +2384,9 @@ elif pagina == "Agenda":
                 edit_dir = st.text_input("Dirección", value=limpiar_valor(row.get("Dirección")))
                 edit_servicio = st.text_input("Servicio", value=limpiar_valor(row.get("Servicio")))
                 edit_monto = st.number_input(
-                    "Monto", min_value=0,
-                    value=int(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0
+                    "Monto", min_value=0.0,
+                    value=float(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0.0,
+                    step=1.0, format="%.2f"
                 )
                 origen_actual = limpiar_valor(row.get("Origen"), ORIGENES[0] if ORIGENES else "")
                 edit_origen = st.selectbox(
