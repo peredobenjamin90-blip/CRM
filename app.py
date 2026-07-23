@@ -680,6 +680,7 @@ def cargar_datos(empresa_id, access_token):
             response = client.table("clientes")\
                 .select("*")\
                 .eq("empresa_id", empresa_id)\
+                .order("id")\
                 .range(page * page_size, (page + 1) * page_size - 1)\
                 .execute()
 
