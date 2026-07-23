@@ -127,7 +127,7 @@ def generar_hoja_servicio(
     c = canvas.Canvas(packet, pagesize=(pdf_width, pdf_height))
     c.setFillColorRGB(0, 0, 0)
 
-    FONT_BUMP = 7  # sube este número si quieres la letra aún más grande
+    FONT_BUMP = 5  # sube este número si quieres la letra aún más grande
     for (ix, iy, ix2, iy2, texto, fsize) in campos_fijos + campos_items + campos_totales:
         if not texto:
             continue
