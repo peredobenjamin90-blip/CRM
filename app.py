@@ -1695,6 +1695,7 @@ elif pagina == "Chat":
     # AGENDA
 elif pagina == "Agenda":
     st.title("📅 Agenda de Servicios")
+    st.caption(f"🔧 DEBUG — filas totales: {len(df)} | Gashaan: {len(df[df['Nombre'].astype(str).str.contains('Gashaan', case=False, na=False)])}")
     import urllib.parse
     import json
     from datetime import datetime, timedelta
