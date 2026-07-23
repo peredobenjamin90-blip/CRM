@@ -2159,7 +2159,8 @@ elif pagina == "Agenda":
             "borderColor": color,
             "extendedProps": {"id": str(row.get("id", ""))},
         })
-
+    _g = [e for e in eventos if "Gashaan" in e.get("title", "")]
+    st.caption(f"🔧 DEBUG cal — eventos totales: {len(eventos)} | Gashaan en eventos: {len(_g)} | detalle: {_g[:1]}")
     opciones_calendario = {
         "initialView": "dayGridMonth",
         "locale": "es",
