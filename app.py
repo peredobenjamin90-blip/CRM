@@ -2038,17 +2038,30 @@ elif pagina == "Agenda":
                     if id_cliente_default and str(id_cliente_default) not in ["", "nan", "None"]:
                         id_cliente = int(id_cliente_default)
                     else:
-                        max_id_resp = client_auth.table("clientes")\
-                            .select("cliente_id")\
-                            .eq("empresa_id", st.session_state["empresa_id"])\
-                            .not_.is_("cliente_id", "null")\
-                            .order("cliente_id", desc=True)\
-                            .limit(1)\
-                            .execute()
-                        if max_id_resp.data and max_id_resp.data[0]["cliente_id"]:
-                            id_cliente = int(max_id_resp.data[0]["cliente_id"]) + 1
-                        else:
-                            id_cliente = 1
+                        # Evitar duplicados: si ya existe un cliente con ese teléfono, reusar su ID
+                        if telefono and str(telefono).strip().lower() not in ["", "nan", "none"]:
+                            existe = client_auth.table("clientes")\
+                                .select("cliente_id")\
+                                .eq("empresa_id", st.session_state["empresa_id"])\
+                                .eq("tel", telefono)\
+                                .not_.is_("cliente_id", "null")\
+                                .order("cliente_id", desc=True)\
+                                .limit(1)\
+                                .execute()
+                            if existe.data and existe.data[0]["cliente_id"]:
+                                id_cliente = int(existe.data[0]["cliente_id"])
+                        if id_cliente is None:
+                            max_id_resp = client_auth.table("clientes")\
+                                .select("cliente_id")\
+                                .eq("empresa_id", st.session_state["empresa_id"])\
+                                .not_.is_("cliente_id", "null")\
+                                .order("cliente_id", desc=True)\
+                                .limit(1)\
+                                .execute()
+                            if max_id_resp.data and max_id_resp.data[0]["cliente_id"]:
+                                id_cliente = int(max_id_resp.data[0]["cliente_id"]) + 1
+                            else:
+                                id_cliente = 1
 
                     hora_str = hora.strftime("%H:%M") if hora else None
                     rango_nuevo = rango_hora(hora_str)
