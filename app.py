@@ -1695,7 +1695,6 @@ elif pagina == "Chat":
     # AGENDA
 elif pagina == "Agenda":
     st.title("📅 Agenda de Servicios")
-    st.caption(f"🔧 DEBUG — filas totales: {len(df)} | Gashaan: {len(df[df['Nombre'].astype(str).str.contains('Gashaan', case=False, na=False)])}")
     import urllib.parse
     import json
     from datetime import datetime, timedelta
@@ -2131,7 +2130,18 @@ elif pagina == "Agenda":
     st.markdown("---")
 
     from streamlit_calendar import calendar
-
+    st.markdown("### 📆 Próximas citas pendientes")
+    _hoy = datetime.now().date()
+    prox = df_a[(df_a["Fecha"].dt.date >= _hoy) & (df_a["realizado"] != True)].sort_values("Fecha") if not df_a.empty else pd.DataFrame()
+    if prox.empty:
+        st.info("No hay citas pendientes próximas.")
+    else:
+        for _, r in prox.head(40).iterrows():
+            fr = r["Fecha"].date()
+            hr = limpiar_valor(r.get("hora"))
+            hr_txt = f" · {rango_hora(hr)}" if hr else ""
+            st.write(f"📅 **{fr.strftime('%d/%m/%Y')}**{hr_txt} — {limpiar_valor(r.get('Nombre'))} — {limpiar_valor(r.get('Servicio'))} — ${r.get('Monto', 0) or 0:,.0f}")
+    st.markdown("---")
     st.markdown("### 📅 Calendario de servicios")
 
     hoy = datetime.now()
@@ -2159,8 +2169,6 @@ elif pagina == "Agenda":
             "borderColor": color,
             "extendedProps": {"id": str(row.get("id", ""))},
         })
-    _g = [e for e in eventos if "Gashaan" in e.get("title", "")]
-    st.caption(f"🔧 DEBUG cal — eventos totales: {len(eventos)} | Gashaan en eventos: {len(_g)} | detalle: {_g[:1]}")
     opciones_calendario = {
         "initialView": "dayGridMonth",
         "locale": "es",
