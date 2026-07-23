@@ -2145,9 +2145,11 @@ elif pagina == "Agenda":
     st.markdown("### 📅 Calendario de servicios")
 
     hoy = datetime.now()
+    inicio_cal = hoy.replace(day=1) - pd.DateOffset(months=1)
+    fin_cal = hoy + pd.DateOffset(months=12)
     df_cal = df_a[
-        (df_a["Fecha"].dt.year == hoy.year) &
-        (df_a["Fecha"].dt.month == hoy.month)
+        (df_a["Fecha"] >= inicio_cal) &
+        (df_a["Fecha"] <= fin_cal)
     ].copy() if not df_a.empty else pd.DataFrame()
     if not df_cal.empty:
         df_cal = df_cal.dropna(subset=["Fecha"])
