@@ -1695,7 +1695,6 @@ elif pagina == "Chat":
     # AGENDA
 elif pagina == "Agenda":
     st.title("📅 Agenda de Servicios")
-    st.caption(f"🔧 DEBUG — filas totales: {len(df)} | Gashaan: {len(df[df['Nombre'].astype(str).str.contains('Gashaan', case=False, na=False)])}")
     import urllib.parse
     import json
     from datetime import datetime, timedelta
@@ -2171,10 +2170,12 @@ elif pagina == "Agenda":
         "height": 600,
     }
 
+    import hashlib
+    cal_sig = hashlib.md5(str(eventos).encode()).hexdigest()[:8]
     resultado_cal = calendar(
         events=eventos,
         options=opciones_calendario,
-        key=f"calendario_principal_{st.session_state.get('agenda_refresh', 0)}"
+        key=f"calendario_principal_{cal_sig}"
     )
 
     if resultado_cal and resultado_cal.get("eventClick"):
