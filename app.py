@@ -680,7 +680,6 @@ def cargar_datos(empresa_id, access_token):
             response = client.table("clientes")\
                 .select("*")\
                 .eq("empresa_id", empresa_id)\
-                .order("id")\
                 .range(page * page_size, (page + 1) * page_size - 1)\
                 .execute()
 
@@ -1696,6 +1695,7 @@ elif pagina == "Chat":
     # AGENDA
 elif pagina == "Agenda":
     st.title("📅 Agenda de Servicios")
+    st.caption(f"🔧 DEBUG — filas totales: {len(df)} | Gashaan: {len(df[df['Nombre'].astype(str).str.contains('Gashaan', case=False, na=False)])}")
     import urllib.parse
     import json
     from datetime import datetime, timedelta
