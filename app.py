@@ -1986,7 +1986,7 @@ elif pagina == "Agenda":
         aplica_descuento = st.checkbox("Aplicar descuento", key=f"desc_{st.session_state['form_key']}")
         descuento_pct = st.number_input("Descuento (%)", min_value=0, max_value=100, value=0, key=f"desc_pct_{st.session_state['form_key']}") if aplica_descuento else 0
         aplica_iva = st.checkbox("Aplicar IVA 16% (factura)", key=f"iva_{st.session_state['form_key']}")
-
+        sin_cotizar = st.checkbox("🖨️ Imprimir sin cotizar (total en blanco)", key=f"sincot_{st.session_state['form_key']}")
     monto_descuento = subtotal_final * descuento_pct / 100
     base = subtotal_final - monto_descuento
     iva = base * 0.16 if aplica_iva else 0
@@ -2002,7 +2002,8 @@ elif pagina == "Agenda":
             if aplica_iva:
                 st.markdown(f"**IVA 16%:** ${iva:,.0f}")
             st.markdown(f"### 💰 Total: ${total_final:,.0f}")
-
+            if sin_cotizar:
+                st.warning("⚠️ Hoja SIN COTIZAR: el total saldrá en blanco en el PDF. Cotiza en sitio y anota el total a mano.")
     origen_input = st.selectbox("Origen", ORIGENES, key=f"origen_{st.session_state['form_key']}")
 
     col1, col2 = st.columns(2)
@@ -2094,6 +2095,10 @@ elif pagina == "Agenda":
                     st.success(f"✅ Agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt} — Total: ${total_final:,.0f}")
 
                     try:
+                        if sin_cotizar:
+                            h_sub, h_desc, h_iva, h_tot = 0, 0, 0, 0
+                        else:
+                            h_sub, h_desc, h_iva, h_tot = subtotal_final, monto_descuento, iva, total_final
                         pdf_bytes = generar_hoja_servicio(
                             nombre=nombre,
                             direccion=direccion,
@@ -2103,11 +2108,11 @@ elif pagina == "Agenda":
                             folio="",
                             origen=origen_input,
                             items=renglones_validos,
-                            subtotal=subtotal_final,
-                            descuento=monto_descuento,
+                            subtotal=h_sub,
+                            descuento=h_desc,
                             descuento_pct=descuento_pct,
-                            iva=iva,
-                            total=total_final,
+                            iva=h_iva,
+                            total=h_tot,
                             ciudad=USUARIOS[st.session_state["usuario"]].get("ciudad", ""),
                             template_path=USUARIOS[st.session_state["usuario"]].get("template_pdf") or "assets/Hoja de servicio de Maxi Clean.pdf"
                         )

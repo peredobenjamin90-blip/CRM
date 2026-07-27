@@ -72,7 +72,13 @@ def generar_hoja_servicio(
     ]
 
     Y_RENGLONES = [572, 590, 608, 626, 644, 662, 680]
-
+    ABREV_PAQUETE = {
+        "Healthy": "Hlth",
+        "Premium": "Prem",
+        "Protección": "Prot",
+        "Ecológico": "Ecol",
+        "Sencillo": "Senc",
+    }
     campos_items = []
     for i, item in enumerate(items[:7]):
         if i >= len(Y_RENGLONES):
@@ -81,7 +87,8 @@ def generar_hoja_servicio(
         dy = 14
         serv_txt = str(item.get("servicio", ""))
         cant_txt = str(item.get("cantidad", "")) if item.get("cantidad") else ""
-        paq_txt = str(item.get("paquete", ""))
+        paq_raw = str(item.get("paquete", ""))
+        paq_txt = ABREV_PAQUETE.get(paq_raw, paq_raw)
         pu_txt = f"${item.get('precio_unitario', 0):,.0f}" if item.get("precio_unitario") else ""
         sub_txt = f"${item.get('subtotal', 0):,.0f}" if item.get("subtotal") else ""
 
