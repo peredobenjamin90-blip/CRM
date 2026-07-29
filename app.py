@@ -1978,8 +1978,13 @@ elif pagina == "Agenda":
             })
 
     st.markdown("---")
-    subtotal_total = sum(r["subtotal"] for r in renglones)
-    subtotal_final = max(subtotal_total, MINIMO) if subtotal_total > 0 else 0
+    hay_por_cotizar = any(r["precio_unitario"] is None for r in renglones)
+    if hay_por_cotizar:
+        subtotal_total = None
+        subtotal_final = None
+    else:
+        subtotal_total = sum((r["subtotal"] or 0) for r in renglones)
+        subtotal_final = max(subtotal_total, MINIMO) if subtotal_total > 0 else 0
 
     col_opciones, col_totales = st.columns([2, 1])
     with col_opciones:
@@ -1987,15 +1992,22 @@ elif pagina == "Agenda":
         descuento_pct = st.number_input("Descuento (%)", min_value=0, max_value=100, value=0, key=f"desc_pct_{st.session_state['form_key']}") if aplica_descuento else 0
         aplica_iva = st.checkbox("Aplicar IVA 16% (factura)", key=f"iva_{st.session_state['form_key']}")
         sin_cotizar = st.checkbox("🖨️ Imprimir sin cotizar (total en blanco)", key=f"sincot_{st.session_state['form_key']}")
-    monto_descuento = subtotal_final * descuento_pct / 100
-    base = subtotal_final - monto_descuento
-    iva = base * 0.16 if aplica_iva else 0
-    total_final = base + iva
+    if subtotal_final is None:
+        monto_descuento = 0
+        iva = 0
+        total_final = None
+    else:
+        monto_descuento = subtotal_final * descuento_pct / 100
+        base = subtotal_final - monto_descuento
+        iva = base * 0.16 if aplica_iva else 0
+        total_final = base + iva
 
     with col_totales:
-        if subtotal_final > 0:
+        if subtotal_final is None:
+            st.warning("⚠️ Cotización incompleta: hay servicios *por cotizar*. No se calcula el total hasta que tengan precio.")
+        elif subtotal_final > 0:
             st.markdown(f"**Subtotal:** ${subtotal_final:,.0f}")
-            if subtotal_total > 0 and subtotal_total < MINIMO:
+            if subtotal_total is not None and 0 < subtotal_total < MINIMO:
                 st.caption(f"⚠️ Mínimo ${MINIMO:,}")
             if aplica_descuento and descuento_pct > 0:
                 st.markdown(f"**Descuento ({descuento_pct}%):** -${monto_descuento:,.0f}")
@@ -2080,7 +2092,7 @@ elif pagina == "Agenda":
                         "cantidad": str(len(renglones_validos)),
                         "paquete": renglones_validos[0]["paquete"] if renglones_validos else "",
                         "fecha": fecha.isoformat(),
-                        "monto": float(total_final),
+                        "monto": float(total_final) if total_final is not None else 0,
                         "origen": origen_input,
                         "año": fecha.year,
                         "realizado": False,
@@ -2095,10 +2107,10 @@ elif pagina == "Agenda":
                     st.success(f"✅ Agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt} — Total: ${total_final:,.0f}")
 
                     try:
-                        if sin_cotizar:
-                            h_sub, h_desc, h_iva, h_tot = 0, 0, 0, 0
+                        if sin_cotizar or total_final is None:
+                            h_sub, h_desc, h_iva, h_tot, h_dpct = 0, 0, 0, 0, 0
                         else:
-                            h_sub, h_desc, h_iva, h_tot = subtotal_final, monto_descuento, iva, total_final
+                            h_sub, h_desc, h_iva, h_tot, h_dpct = subtotal_final, monto_descuento, iva, total_final, descuento_pct
                         pdf_bytes = generar_hoja_servicio(
                             nombre=nombre,
                             direccion=direccion,
@@ -2110,7 +2122,7 @@ elif pagina == "Agenda":
                             items=renglones_validos,
                             subtotal=h_sub,
                             descuento=h_desc,
-                            descuento_pct=descuento_pct,
+                            descuento_pct=h_dpct,
                             iva=h_iva,
                             total=h_tot,
                             ciudad=USUARIOS[st.session_state["usuario"]].get("ciudad", ""),
@@ -2267,9 +2279,10 @@ elif pagina == "Agenda":
                     items_ev = None
 
                 if items_ev:
-                    subtotal_ev = max(sum(r.get("subtotal", 0) for r in items_ev), MINIMO)
+                    hay_por_cotizar_ev = any(r.get("precio_unitario") is None or r.get("subtotal") is None for r in items_ev)
+                    subtotal_ev = None if hay_por_cotizar_ev else max(sum((r.get("subtotal") or 0) for r in items_ev), MINIMO)
                 else:
-                    items_ev = [{"servicio": limpiar_valor(row.get("Servicio")), "cantidad": 1, "paquete": "", "precio_unitario": 0, "subtotal": row.get("Monto", 0) or 0}]
+                    items_ev = [{"servicio": limpiar_valor(row.get("Servicio")), "cantidad": 1, "paquete": "", "precio_unitario": None, "subtotal": row.get("Monto", 0) or 0}]
                     subtotal_ev = row.get("Monto", 0) or 0
 
                 # Descuento e IVA guardados al agendar
@@ -2280,10 +2293,13 @@ elif pagina == "Agenda":
                 iva_raw = row.get("iva", row.get("IVA", False))
                 aplica_iva_ev = str(iva_raw).strip().lower() in ["true", "1", "t", "yes", "si", "sí"]
 
-                monto_desc_ev = subtotal_ev * desc_pct_ev / 100
-                base_ev = subtotal_ev - monto_desc_ev
-                iva_ev = base_ev * 0.16 if aplica_iva_ev else 0
-                total_ev = base_ev + iva_ev
+                if subtotal_ev is None:
+                    monto_desc_ev, iva_ev, total_ev, desc_pct_ev = 0, 0, None, 0
+                else:
+                    monto_desc_ev = subtotal_ev * desc_pct_ev / 100
+                    base_ev = subtotal_ev - monto_desc_ev
+                    iva_ev = base_ev * 0.16 if aplica_iva_ev else 0
+                    total_ev = base_ev + iva_ev
 
                 pdf_bytes_ev = generar_hoja_servicio(
                     nombre=limpiar_valor(row.get("Nombre")),
@@ -2294,11 +2310,11 @@ elif pagina == "Agenda":
                     folio=folio_ev,
                     origen=limpiar_valor(row.get("Origen")),
                     items=items_ev,
-                    subtotal=subtotal_ev,
+                    subtotal=(subtotal_ev or 0),
                     descuento=monto_desc_ev,
                     descuento_pct=desc_pct_ev,
                     iva=iva_ev,
-                    total=total_ev,
+                    total=(total_ev or 0),
                     ciudad=USUARIOS[st.session_state["usuario"]].get("ciudad", ""),
                     template_path=USUARIOS[st.session_state["usuario"]].get("template_pdf") or "assets/Hoja de servicio de Maxi Clean.pdf"
                 )

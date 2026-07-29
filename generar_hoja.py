@@ -54,11 +54,11 @@ def generar_hoja_servicio(
             "servicio": partes[0],
             "cantidad": cantidad or 1,
             "paquete": paquete,
-            "precio_unitario": 0,
+            "precio_unitario": None,
             "subtotal": total or subtotal
         }]
         if len(partes) > 1:
-            items.append({"servicio": partes[1], "cantidad": "", "paquete": "", "precio_unitario": 0, "subtotal": 0})
+            items.append({"servicio": partes[1], "cantidad": "", "paquete": "", "precio_unitario": None, "subtotal": None})
 
     campos_fijos = [
         (70, 173, 380, 188, nombre, 9),
@@ -72,6 +72,7 @@ def generar_hoja_servicio(
     ]
 
     Y_RENGLONES = [572, 590, 608, 626, 644, 662, 680]
+
     ABREV_PAQUETE = {
         "Healthy": "Hlth",
         "Premium": "Prem",
@@ -79,6 +80,7 @@ def generar_hoja_servicio(
         "Ecológico": "Ecol",
         "Sencillo": "Senc",
     }
+
     campos_items = []
     for i, item in enumerate(items[:7]):
         if i >= len(Y_RENGLONES):
@@ -89,8 +91,10 @@ def generar_hoja_servicio(
         cant_txt = str(item.get("cantidad", "")) if item.get("cantidad") else ""
         paq_raw = str(item.get("paquete", ""))
         paq_txt = ABREV_PAQUETE.get(paq_raw, paq_raw)
-        pu_txt = f"${item.get('precio_unitario', 0):,.0f}" if item.get("precio_unitario") else ""
-        sub_txt = f"${item.get('subtotal', 0):,.0f}" if item.get("subtotal") else ""
+        pu_val = item.get("precio_unitario", None)
+        pu_txt = "" if pu_val is None else f"${pu_val:,.0f}"
+        sub_val = item.get("subtotal", None)
+        sub_txt = "" if sub_val is None else f"${sub_val:,.0f}"
 
         if serv_txt:
             campos_items.append((70, y, 450, y + dy, serv_txt, 9))
@@ -104,7 +108,6 @@ def generar_hoja_servicio(
             campos_items.append((663, y, 762, y + dy, sub_txt, 9))
 
     # --- Totales (coordenadas del template Maxi Clean) ---
-    # subtotal (755) y total (840) ya caen bien; ajusta Y_DESCUENTO / Y_IVA si no aterrizan en su fila
     Y_SUBTOTAL = 755
     Y_DESCUENTO = 783
     Y_IVA = 811
@@ -114,19 +117,19 @@ def generar_hoja_servicio(
     X_LBL_1, X_LBL_2 = 586, 660      # celda de la etiqueta (izquierda)
 
     campos_totales = []
-    # Subtotal (la etiqueta ya viene impresa en el template)
+    # Subtotal (etiqueta ya impresa en el template)
     if subtotal and subtotal > 0:
         campos_totales.append((X_VAL_1, Y_SUBTOTAL, X_VAL_2, Y_SUBTOTAL + dy_tot, f"${subtotal:,.0f}", 9))
-    # Descuento: etiqueta + valor (el template no trae la etiqueta impresa)
+    # Descuento: etiqueta + valor
     if descuento and descuento > 0:
-        etiqueta_desc = f"Descuento {descuento_pct:.0f}%" if descuento_pct else "Descuento"
+        etiqueta_desc = f"Desc {descuento_pct:.0f}%" if descuento_pct else "Desc"
         campos_totales.append((X_LBL_1, Y_DESCUENTO, X_LBL_2, Y_DESCUENTO + dy_tot, etiqueta_desc, 8))
         campos_totales.append((X_VAL_1, Y_DESCUENTO, X_VAL_2, Y_DESCUENTO + dy_tot, f"-${descuento:,.0f}", 9))
     # IVA: etiqueta + valor
     if iva and iva > 0:
         campos_totales.append((X_LBL_1, Y_IVA, X_LBL_2, Y_IVA + dy_tot, "IVA 16%", 8))
         campos_totales.append((X_VAL_1, Y_IVA, X_VAL_2, Y_IVA + dy_tot, f"${iva:,.0f}", 9))
-    # Total (la etiqueta ya viene impresa)
+    # Total (etiqueta ya impresa)
     if total and total > 0:
         campos_totales.append((X_VAL_1, Y_TOTAL, X_VAL_2, Y_TOTAL + dy_tot, f"${total:,.0f}", 9))
 
