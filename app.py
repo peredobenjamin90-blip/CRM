@@ -1420,11 +1420,15 @@ elif pagina == "Follow Up":
     ultimo.columns = ["ID Cliente", "Nombre", "Ultimo servicio", "Tel", "Comentario"]
 
     meses_default = st.session_state.pop("followup_meses_override", None)
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
-        meses = st.slider("Sin servicio hace más de X meses:", 1, 24, meses_default if meses_default is not None else 6)
+        _mdef = min(meses_default, 120) if meses_default is not None else 6
+        meses = st.slider("Sin servicio hace más de X meses:", 1, 120, _mdef)
     with col2:
         mes_filtro = st.selectbox("Mes del último servicio:", ["Todos","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"])
+    with col3:
+        años_fu = sorted(ultimo["Ultimo servicio"].dropna().dt.year.unique().astype(int).tolist(), reverse=True)
+        año_filtro = st.selectbox("Año del último servicio:", ["Todos"] + [str(a) for a in años_fu])
 
     # Búsqueda por nombre o ID
     buscar_followup = st.text_input("🔍 Buscar por nombre o ID", key="buscar_followup")
@@ -1436,6 +1440,8 @@ elif pagina == "Follow Up":
                   "Julio":7,"Agosto":8,"Septiembre":9,"Octubre":10,"Noviembre":11,"Diciembre":12}
     if mes_filtro != "Todos":
         sin_servicio = sin_servicio[sin_servicio["Ultimo servicio"].dt.month == meses_dict[mes_filtro]]
+    if año_filtro != "Todos":
+        sin_servicio = sin_servicio[sin_servicio["Ultimo servicio"].dt.year == int(año_filtro)]
 
     if buscar_followup:
         sin_servicio = sin_servicio[
