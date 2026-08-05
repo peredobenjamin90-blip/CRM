@@ -1410,43 +1410,59 @@ elif pagina == "Follow Up":
     df_fu["Monto"] = pd.to_numeric(df_fu["Monto"], errors="coerce")
     df_fu["ID Cliente"] = pd.to_numeric(df_fu["ID Cliente"], errors="coerce")
 
-    # Agrupar por ID Cliente para unir nombres distintos del mismo cliente
-    ultimo = df_fu.groupby("ID Cliente").agg(
+    # Agrupar por ID; si no hay ID, agrupar por nombre (para no perder clientes sin ID)
+    df_fu["_grp"] = df_fu.apply(
+        lambda r: f"id_{int(r['ID Cliente'])}" if pd.notnull(r["ID Cliente"]) else f"nom_{str(r['Nombre']).strip().lower()}",
+        axis=1
+    )
+    ultimo = df_fu.groupby("_grp").agg(
+        IDCliente=("ID Cliente", "last"),
         Nombre=("Nombre", "last"),
-        Fecha=("Fecha", "max"),
+        UltimoServicio=("Fecha", "max"),
         Tel=("Tel", "last"),
         Comentario=("Comentarios con llamada posterior a venta", "last")
-    ).reset_index()
+    ).reset_index(drop=True)
     ultimo.columns = ["ID Cliente", "Nombre", "Ultimo servicio", "Tel", "Comentario"]
 
-    meses_default = st.session_state.pop("followup_meses_override", None)
-    col1, col2 = st.columns(2)
-    with col1:
-        _mdef = min(meses_default, 120) if meses_default is not None else 6
-        meses = st.slider("Sin servicio hace más de X meses:", 1, 120, _mdef)
-    with col2:
-        mes_filtro = st.selectbox("Mes del último servicio:", ["Todos","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"])
-
-    # Búsqueda por nombre o ID
-    buscar_followup = st.text_input("🔍 Buscar por nombre o ID", key="buscar_followup")
+    meses_override = st.session_state.pop("followup_meses_override", None)
 
     meses_dict = {"Enero":1,"Febrero":2,"Marzo":3,"Abril":4,"Mayo":5,"Junio":6,
                   "Julio":7,"Agosto":8,"Septiembre":9,"Octubre":10,"Noviembre":11,"Diciembre":12}
 
-    if mes_filtro != "Todos":
-        # Mes específico → año más reciente en el pasado (basado en la fecha actual). Ignora el slider.
-        mes_num = meses_dict[mes_filtro]
-        hoy_fu = datetime.now()
-        año_objetivo = hoy_fu.year if mes_num <= hoy_fu.month else hoy_fu.year - 1
-        sin_servicio = ultimo[
-            (ultimo["Ultimo servicio"].dt.month == mes_num) &
-            (ultimo["Ultimo servicio"].dt.year == año_objetivo)
-        ].copy()
-        st.caption(f"📅 Mostrando servicios de {mes_filtro} {año_objetivo}")
-    else:
-        # Sin mes → filtro por antigüedad (slider)
-        fecha_limite = datetime.now() - timedelta(days=meses * 30)
+    modo_fu = st.radio(
+        "Filtrar clientes por:",
+        ["Mes y año", "Antigüedad (tiempo sin servicio)"],
+        index=1 if meses_override is not None else 0,
+        horizontal=True
+    )
+
+    if modo_fu.startswith("Antigüedad"):
+        opciones_antiguedad = {"3 meses":3, "6 meses":6, "9 meses":9, "1 año":12,
+                               "1.5 años":18, "2 años":24, "3 años":36, "5 años":60}
+        if meses_override is not None:
+            meses_ant = meses_override
+            st.caption(f"Sin servicio desde hace más de {meses_ant} meses")
+        else:
+            sel_ant = st.selectbox("Sin servicio desde hace más de:", list(opciones_antiguedad.keys()), index=1)
+            meses_ant = opciones_antiguedad[sel_ant]
+        fecha_limite = datetime.now() - timedelta(days=meses_ant * 30)
         sin_servicio = ultimo[ultimo["Ultimo servicio"] < fecha_limite].copy()
+        mes_filtro = f"Hace +{meses_ant}m"
+    else:
+        col1, col2 = st.columns(2)
+        with col1:
+            mes_filtro = st.selectbox("Mes del último servicio:", ["Todos","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"])
+        with col2:
+            años_fu = sorted(ultimo["Ultimo servicio"].dropna().dt.year.unique().astype(int).tolist(), reverse=True)
+            año_filtro = st.selectbox("Año del último servicio:", ["Todos"] + [str(a) for a in años_fu])
+        sin_servicio = ultimo.copy()
+        if mes_filtro != "Todos":
+            sin_servicio = sin_servicio[sin_servicio["Ultimo servicio"].dt.month == meses_dict[mes_filtro]]
+        if año_filtro != "Todos":
+            sin_servicio = sin_servicio[sin_servicio["Ultimo servicio"].dt.year == int(año_filtro)]
+
+    # Búsqueda por nombre o ID
+    buscar_followup = st.text_input("🔍 Buscar por nombre o ID", key="buscar_followup")
 
     if buscar_followup:
         sin_servicio = sin_servicio[
