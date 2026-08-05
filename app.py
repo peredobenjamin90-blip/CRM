@@ -1437,17 +1437,35 @@ elif pagina == "Follow Up":
     )
 
     if modo_fu.startswith("Antigüedad"):
-        opciones_antiguedad = {"3 meses":3, "6 meses":6, "9 meses":9, "1 año":12,
-                               "1.5 años":18, "2 años":24, "3 años":36, "5 años":60}
+        # Rangos (min, max) en meses. max=None => sin límite superior.
+        rangos_antiguedad = {
+            "3 a 6 meses": (3, 6),
+            "6 a 9 meses": (6, 9),
+            "9 a 12 meses": (9, 12),
+            "1 a 1.5 años": (12, 18),
+            "1.5 a 2 años": (18, 24),
+            "2 a 3 años": (24, 36),
+            "3 a 5 años": (36, 60),
+            "Más de 5 años": (60, None),
+        }
         if meses_override is not None:
-            meses_ant = meses_override
-            st.caption(f"Sin servicio desde hace más de {meses_ant} meses")
+            min_m, max_m = meses_override, None
+            st.caption(f"Sin servicio desde hace más de {min_m} meses")
+            etiqueta_ant = f"+{min_m}m"
         else:
-            sel_ant = st.selectbox("Sin servicio desde hace más de:", list(opciones_antiguedad.keys()), index=1)
-            meses_ant = opciones_antiguedad[sel_ant]
-        fecha_limite = datetime.now() - timedelta(days=meses_ant * 30)
-        sin_servicio = ultimo[ultimo["Ultimo servicio"] < fecha_limite].copy()
-        mes_filtro = f"Hace +{meses_ant}m"
+            sel_ant = st.selectbox("Sin servicio (rango de tiempo):", list(rangos_antiguedad.keys()), index=0)
+            min_m, max_m = rangos_antiguedad[sel_ant]
+            etiqueta_ant = sel_ant
+        fecha_min = datetime.now() - timedelta(days=min_m * 30)
+        if max_m is not None:
+            fecha_max = datetime.now() - timedelta(days=max_m * 30)
+            sin_servicio = ultimo[
+                (ultimo["Ultimo servicio"] < fecha_min) &
+                (ultimo["Ultimo servicio"] >= fecha_max)
+            ].copy()
+        else:
+            sin_servicio = ultimo[ultimo["Ultimo servicio"] < fecha_min].copy()
+        mes_filtro = f"Antig: {etiqueta_ant}"
     else:
         col1, col2 = st.columns(2)
         with col1:
