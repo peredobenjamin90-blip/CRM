@@ -2000,7 +2000,15 @@ elif pagina == "Agenda":
     nombre = st.text_input("Nombre del cliente", key=f"nombre_{st.session_state['form_key']}")
     telefono = st.text_input("Teléfono(s)", key=f"tel_{st.session_state['form_key']}")
     direccion = st.text_input("Dirección", key=f"dir_{st.session_state['form_key']}")
-
+    tipo_cliente_sel = st.selectbox("Tipo de cliente", ["Residencial", "Comercial"], key=f"tipocli_{st.session_state['form_key']}")
+    razon_social_in = ""
+    rfc_in = ""
+    if tipo_cliente_sel == "Comercial":
+        colf1, colf2 = st.columns(2)
+        with colf1:
+            razon_social_in = st.text_input("Razón social", key=f"razon_{st.session_state['form_key']}")
+        with colf2:
+            rfc_in = st.text_input("RFC", key=f"rfc_{st.session_state['form_key']}")
     st.markdown("**🧼 Servicios**")
     st.caption("El precio se autocompleta desde el cotizador, pero puedes editarlo")
 
@@ -2184,7 +2192,10 @@ elif pagina == "Agenda":
                         "comentarios": renglones_json,
                         "descuento_pct": float(descuento_pct),
                         "iva": bool(aplica_iva),
-                        "estado_pago": "pendiente"
+                        "estado_pago": "pendiente",
+                        "tipo_cliente": tipo_cliente_sel,
+                        "razon_social": razon_social_in or None,
+                        "rfc": rfc_in or None
                     }).execute()
 
                     fecha_txt = fecha_relativa(fecha)
@@ -2326,7 +2337,8 @@ elif pagina == "Agenda":
                 **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' entre las {rango_row}' if rango_row else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **🔍 Origen:** {limpiar_valor(row.get('Origen'))}  
-                **💳 Pago:** {limpiar_valor(row.get('estado_pago'), 'sin registrar')}  
+                **💳 Pago:** {limpiar_valor(row.get('estado_pago'), 'sin registrar')}
+                **🏢 Tipo:** {limpiar_valor(row.get('tipo_cliente'), 'Residencial')}{f" · 🧾 {limpiar_valor(row.get('factura'))}" if limpiar_valor(row.get('factura')) else ""} 
                 **Estado:** {'✅ Realizado' if realizado else '⏳ Pendiente'}
                 """)
             with col2:
@@ -2536,7 +2548,34 @@ elif pagina == "Agenda":
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error al guardar pago: {e}")
-
+            # 🧾 Facturación
+            st.markdown("#### 🧾 Facturación")
+            tipo_actual = limpiar_valor(row.get("tipo_cliente"), "Residencial") or "Residencial"
+            with st.form("factura_form"):
+                nuevo_tipo = st.selectbox("Tipo de cliente", ["Residencial", "Comercial"],
+                    index=1 if tipo_actual == "Comercial" else 0)
+                nueva_razon = st.text_input("Razón social", value=limpiar_valor(row.get("razon_social")))
+                nuevo_rfc = st.text_input("RFC", value=limpiar_valor(row.get("rfc")))
+                nueva_factura = st.text_input("Número de factura", value=limpiar_valor(row.get("factura")), placeholder="Ej. FAC-2026-0932")
+                guardar_fact = st.form_submit_button("💾 Guardar facturación", use_container_width=True)
+                if guardar_fact:
+                    try:
+                        client_auth = get_supabase_auth()
+                        client_auth.table("clientes").update({
+                            "tipo_cliente": nuevo_tipo,
+                            "razon_social": nueva_razon or None,
+                            "rfc": nuevo_rfc or None,
+                            "factura": nueva_factura or None
+                        }).eq("id", id_click).execute()
+                        st.success("✅ Datos de facturación guardados.")
+                        st.cache_data.clear()
+                        del st.session_state["evento_seleccionado"]
+                        st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
+                        import time as t
+                        t.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error: {e}")
             st.markdown("#### ✏️ Editar datos del servicio")
             with st.form("editar_servicio_form"):
                 edit_nombre = st.text_input("Nombre", value=limpiar_valor(row.get("Nombre")))
