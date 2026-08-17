@@ -1846,8 +1846,26 @@ elif pagina == "Agenda":
                 for _, r in _pc.sort_values("Fecha").iterrows():
                     f = r["Fecha"].date().strftime("%d/%m/%Y") if pd.notnull(r["Fecha"]) else "—"
                     est = r.get("estado_pago") or "pendiente"
-                    st.write(f"• **{limpiar_valor(r.get('Nombre'))}** — {f} — saldo ${r['_saldo']:,.0f} ({est})")
-
+                    rid = str(r.get("id", ""))
+                    cbc1, cbc2 = st.columns([4, 1])
+                    with cbc1:
+                        st.write(f"• **{limpiar_valor(r.get('Nombre'))}** — {f} — saldo ${r['_saldo']:,.0f} ({est})")
+                    with cbc2:
+                        if rid and st.button("✅ Pagado", key=f"cobrar_{rid}"):
+                            try:
+                                client_auth = get_supabase_auth()
+                                client_auth.table("clientes").update({
+                                    "estado_pago": "pagado",
+                                    "fecha_pago": datetime.now().date().isoformat(),
+                                    "monto_pagado": float(r["Monto"])
+                                }).eq("id", rid).execute()
+                                st.success(f"✅ {limpiar_valor(r.get('Nombre'))} marcado como pagado.")
+                                st.cache_data.clear()
+                                import time as t
+                                t.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error: {e}")
     fecha_sel = st.date_input("Selecciona una fecha", datetime.now(), key="agenda_fecha_1")
     df_dia = df_a[df_a["Fecha"].dt.date == fecha_sel]
 
