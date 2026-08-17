@@ -1833,6 +1833,21 @@ elif pagina == "Agenda":
     plantillas = USUARIOS[st.session_state["usuario"]].get("plantillas", {})
     empresa = st.session_state.get("empresa", "")
 
+    # 💰 Banner de cuentas por cobrar
+    if not df_a.empty and "estado_pago" in df_a.columns:
+        _pc = df_a[(df_a["realizado"] == True) & (df_a["estado_pago"].isin(["pendiente", "parcial"]))].copy()
+        if not _pc.empty:
+            _pc["Monto"] = pd.to_numeric(_pc["Monto"], errors="coerce").fillna(0)
+            _pc["_pagado"] = pd.to_numeric(_pc["monto_pagado"], errors="coerce").fillna(0) if "monto_pagado" in _pc.columns else 0
+            _pc["_saldo"] = _pc["Monto"] - _pc["_pagado"]
+            total_saldo = _pc["_saldo"].sum()
+            st.warning(f"💰 **{len(_pc)} cuenta(s) por cobrar** — saldo total: ${total_saldo:,.0f}")
+            with st.expander("Ver cuentas por cobrar"):
+                for _, r in _pc.sort_values("Fecha").iterrows():
+                    f = r["Fecha"].date().strftime("%d/%m/%Y") if pd.notnull(r["Fecha"]) else "—"
+                    est = r.get("estado_pago") or "pendiente"
+                    st.write(f"• **{limpiar_valor(r.get('Nombre'))}** — {f} — saldo ${r['_saldo']:,.0f} ({est})")
+
     fecha_sel = st.date_input("Selecciona una fecha", datetime.now(), key="agenda_fecha_1")
     df_dia = df_a[df_a["Fecha"].dt.date == fecha_sel]
 
@@ -1990,7 +2005,6 @@ elif pagina == "Agenda":
         with c3:
             paq_i = st.selectbox(f"p{i}", PAQUETES, label_visibility="collapsed", key=f"paq_{i}_{st.session_state['form_key']}")
 
-        # Precio sugerido desde el cotizador (0 para "Otro" o si falta paquete)
         # Precio sugerido desde el cotizador
         precios_serv = PRECIOS.get(serv_i, {}) if (serv_i and serv_i != "Otro") else {}
         if paq_i and paq_i in precios_serv:
@@ -2144,7 +2158,8 @@ elif pagina == "Agenda":
                         "hora": hora_str,
                         "comentarios": renglones_json,
                         "descuento_pct": float(descuento_pct),
-                        "iva": bool(aplica_iva)
+                        "iva": bool(aplica_iva),
+                        "estado_pago": "pendiente"
                     }).execute()
 
                     fecha_txt = fecha_relativa(fecha)
@@ -2286,6 +2301,7 @@ elif pagina == "Agenda":
                 **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' entre las {rango_row}' if rango_row else ''}  
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **🔍 Origen:** {limpiar_valor(row.get('Origen'))}  
+                **💳 Pago:** {limpiar_valor(row.get('estado_pago'), 'sin registrar')}  
                 **Estado:** {'✅ Realizado' if realizado else '⏳ Pendiente'}
                 """)
             with col2:
@@ -2458,6 +2474,44 @@ elif pagina == "Agenda":
             else:
                 st.success("✅ Este servicio ya fue realizado y guardado en Sheets.")
 
+            # 💰 Sección de pago
+            st.markdown("#### 💰 Pago")
+            estado_actual = limpiar_valor(row.get("estado_pago"), "pendiente") or "pendiente"
+            forma_actual = limpiar_valor(row.get("forma_pago"), "")
+            opciones_estado = ["pendiente", "pagado", "parcial"]
+            opciones_forma = ["", "Efectivo", "Transferencia", "Tarjeta", "Cheque"]
+            monto_serv = float(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0.0
+            with st.form("pago_form"):
+                nuevo_estado = st.selectbox("Estado de pago", opciones_estado,
+                    index=opciones_estado.index(estado_actual) if estado_actual in opciones_estado else 0)
+                nueva_forma = st.selectbox("Forma de pago", opciones_forma,
+                    index=opciones_forma.index(forma_actual) if forma_actual in opciones_forma else 0)
+                nuevo_monto_pagado = st.number_input("Monto pagado (para parcial)", min_value=0.0,
+                    value=float(row.get("monto_pagado", 0) or 0), step=50.0)
+                guardar_pago = st.form_submit_button("💾 Guardar pago", use_container_width=True)
+                if guardar_pago:
+                    try:
+                        client_auth = get_supabase_auth()
+                        upd = {"estado_pago": nuevo_estado, "forma_pago": nueva_forma or None}
+                        if nuevo_estado == "pagado":
+                            upd["fecha_pago"] = datetime.now().date().isoformat()
+                            upd["monto_pagado"] = monto_serv
+                        elif nuevo_estado == "parcial":
+                            upd["monto_pagado"] = float(nuevo_monto_pagado)
+                        else:
+                            upd["monto_pagado"] = 0
+                            upd["fecha_pago"] = None
+                        client_auth.table("clientes").update(upd).eq("id", id_click).execute()
+                        st.success("✅ Pago actualizado.")
+                        st.cache_data.clear()
+                        del st.session_state["evento_seleccionado"]
+                        st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
+                        import time as t
+                        t.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al guardar pago: {e}")
+
             st.markdown("#### ✏️ Editar datos del servicio")
             with st.form("editar_servicio_form"):
                 edit_nombre = st.text_input("Nombre", value=limpiar_valor(row.get("Nombre")))
@@ -2507,14 +2561,12 @@ elif pagina == "Agenda":
                                         return None
 
                                     fila_sheet = None
-                                    # 1) Buscar por folio (si existe)
                                     if folio_actual:
                                         col_folio_idx = SHEET_COLS.get("folio_interno", 1) + 1
                                         for i, val in enumerate(worksheet.col_values(col_folio_idx)):
                                             if str(val).strip() == folio_actual:
                                                 fila_sheet = i + 1
                                                 break
-                                    # 2) Fallback: por nombre + fecha (para servicios sin folio)
                                     if fila_sheet is None:
                                         col_nombre = worksheet.col_values(SHEET_COLS.get("nombre", 4) + 1)
                                         col_fecha = worksheet.col_values(SHEET_COLS.get("fecha", 2) + 1)
