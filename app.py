@@ -2331,20 +2331,22 @@ elif pagina == "Agenda":
 
             col1, col2 = st.columns([3, 1])
             with col1:
-                st.markdown(f"""
-                **👤 Cliente:** {limpiar_valor(row.get('Nombre'))}  
-                **🆔 ID:** {limpiar_valor(row.get('ID Cliente'))}  
-                **📞 Tel:** {limpiar_valor(row.get('Tel'))}  
-                **📍 Dirección:** {limpiar_valor(row.get('Dirección'))}  
-                **🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}  
-                **📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' entre las {rango_row}' if rango_row else ''}  
-                **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
-                **🔍 Origen:** {limpiar_valor(row.get('Origen'))}  
-                **💳 Pago:** {limpiar_valor(row.get('estado_pago'), 'sin registrar')}
-                **🏢 Tipo:** {limpiar_valor(row.get('tipo_cliente'), 'Residencial')}{f" · 🧾 {limpiar_valor(row.get('factura'))}" if limpiar_valor(row.get('factura')) else ""}
-                {f"**🔖 Anticipo:** ${float(row.get('monto_anticipo') or 0):,.0f} solicitado  " if row.get('anticipo_solicitado') else ""} 
-                **Estado:** {'✅ Realizado' if realizado else '⏳ Pendiente'}
-                """)
+                lineas = [
+                    f"**👤 Cliente:** {limpiar_valor(row.get('Nombre'))}",
+                    f"**🆔 ID:** {limpiar_valor(row.get('ID Cliente'))}",
+                    f"**📞 Tel:** {limpiar_valor(row.get('Tel'))}",
+                    f"**📍 Dirección:** {limpiar_valor(row.get('Dirección'))}",
+                    f"**🧼 Servicio:** {limpiar_valor(row.get('Servicio'))}",
+                    f"**📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' entre las {rango_row}' if rango_row else ''}",
+                    f"**💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}",
+                    f"**🔍 Origen:** {limpiar_valor(row.get('Origen'))}",
+                    f"**💳 Pago:** {limpiar_valor(row.get('estado_pago'), 'sin registrar')}",
+                    f"**🏢 Tipo:** {limpiar_valor(row.get('tipo_cliente'), 'Residencial')}" + (f" · 🧾 {limpiar_valor(row.get('factura'))}" if limpiar_valor(row.get('factura')) else ""),
+                ]
+                if row.get('anticipo_solicitado'):
+                    lineas.append(f"**🔖 Anticipo:** ${float(row.get('monto_anticipo') or 0):,.0f} solicitado")
+                lineas.append(f"**Estado:** {'✅ Realizado' if realizado else '⏳ Pendiente'}")
+                st.markdown("  \n".join(lineas))
             with col2:
                 if st.button("✖ Cerrar detalle", use_container_width=True):
                     del st.session_state["evento_seleccionado"]
