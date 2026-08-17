@@ -2084,6 +2084,8 @@ elif pagina == "Agenda":
         descuento_pct = st.number_input("Descuento (%)", min_value=0, max_value=100, value=0, key=f"desc_pct_{st.session_state['form_key']}") if aplica_descuento else 0
         aplica_iva = st.checkbox("Aplicar IVA 16% (factura)", key=f"iva_{st.session_state['form_key']}")
         sin_cotizar = st.checkbox("🖨️ Imprimir sin cotizar (total en blanco)", key=f"sincot_{st.session_state['form_key']}")
+        solicitar_anticipo = st.checkbox("🔖 Solicitar anticipo (cliente nuevo)", key=f"anticipo_{st.session_state['form_key']}")
+        monto_anticipo_in = st.number_input("Monto de anticipo", min_value=0.0, step=50.0, key=f"monto_anticipo_{st.session_state['form_key']}") if solicitar_anticipo else 0.0
     if subtotal_final is None:
         monto_descuento = 0
         iva = 0
@@ -2195,9 +2197,10 @@ elif pagina == "Agenda":
                         "estado_pago": "pendiente",
                         "tipo_cliente": tipo_cliente_sel,
                         "razon_social": razon_social_in or None,
-                        "rfc": rfc_in or None
+                        "rfc": rfc_in or None,
+                        "anticipo_solicitado": bool(solicitar_anticipo),
+                        "monto_anticipo": float(monto_anticipo_in)
                     }).execute()
-
                     fecha_txt = fecha_relativa(fecha)
                     hora_txt = f" entre las {rango_nuevo}" if rango_nuevo else ""
                     st.success(f"✅ Agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt} — Total: ${total_final:,.0f}")
@@ -2338,7 +2341,8 @@ elif pagina == "Agenda":
                 **💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}  
                 **🔍 Origen:** {limpiar_valor(row.get('Origen'))}  
                 **💳 Pago:** {limpiar_valor(row.get('estado_pago'), 'sin registrar')}
-                **🏢 Tipo:** {limpiar_valor(row.get('tipo_cliente'), 'Residencial')}{f" · 🧾 {limpiar_valor(row.get('factura'))}" if limpiar_valor(row.get('factura')) else ""} 
+                **🏢 Tipo:** {limpiar_valor(row.get('tipo_cliente'), 'Residencial')}{f" · 🧾 {limpiar_valor(row.get('factura'))}" if limpiar_valor(row.get('factura')) else ""}
+                {f"**🔖 Anticipo:** ${float(row.get('monto_anticipo') or 0):,.0f} solicitado  " if row.get('anticipo_solicitado') else ""} 
                 **Estado:** {'✅ Realizado' if realizado else '⏳ Pendiente'}
                 """)
             with col2:
