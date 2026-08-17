@@ -1843,23 +1843,30 @@ elif pagina == "Agenda":
             total_saldo = _pc["_saldo"].sum()
             st.warning(f"💰 **{len(_pc)} cuenta(s) por cobrar** — saldo total: ${total_saldo:,.0f}")
             with st.expander("Ver cuentas por cobrar"):
+                st.caption("Elige la forma de pago y marca como pagado. Para pagos parciales, abre el servicio en el calendario.")
                 for _, r in _pc.sort_values("Fecha").iterrows():
                     f = r["Fecha"].date().strftime("%d/%m/%Y") if pd.notnull(r["Fecha"]) else "—"
                     est = r.get("estado_pago") or "pendiente"
                     rid = str(r.get("id", ""))
-                    cbc1, cbc2 = st.columns([4, 1])
+                    cbc1, cbc2, cbc3 = st.columns([3, 1.4, 1])
                     with cbc1:
-                        st.write(f"• **{limpiar_valor(r.get('Nombre'))}** — {f} — saldo ${r['_saldo']:,.0f} ({est})")
+                        st.write(f"**{limpiar_valor(r.get('Nombre'))}** — {f} — saldo ${r['_saldo']:,.0f} ({est})")
                     with cbc2:
+                        forma_sel = st.selectbox(
+                            "Forma", ["Efectivo", "Transferencia", "Tarjeta", "Cheque"],
+                            key=f"forma_{rid}", label_visibility="collapsed"
+                        )
+                    with cbc3:
                         if rid and st.button("✅ Pagado", key=f"cobrar_{rid}"):
                             try:
                                 client_auth = get_supabase_auth()
                                 client_auth.table("clientes").update({
                                     "estado_pago": "pagado",
+                                    "forma_pago": forma_sel,
                                     "fecha_pago": datetime.now().date().isoformat(),
                                     "monto_pagado": float(r["Monto"])
                                 }).eq("id", rid).execute()
-                                st.success(f"✅ {limpiar_valor(r.get('Nombre'))} marcado como pagado.")
+                                st.success(f"✅ {limpiar_valor(r.get('Nombre'))} pagado ({forma_sel}).")
                                 st.cache_data.clear()
                                 import time as t
                                 t.sleep(1)
