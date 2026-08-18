@@ -2071,12 +2071,7 @@ elif pagina == "Agenda":
 
     st.markdown("---")
     hay_por_cotizar = any(r["precio_unitario"] is None for r in renglones)
-    if hay_por_cotizar:
-        subtotal_total = None
-        subtotal_final = None
-    else:
-        subtotal_total = sum((r["subtotal"] or 0) for r in renglones)
-        subtotal_final = max(subtotal_total, MINIMO) if subtotal_total > 0 else 0
+    subtotal_total = None if hay_por_cotizar else sum((r["subtotal"] or 0) for r in renglones)
 
     col_opciones, col_totales = st.columns([2, 1])
     with col_opciones:
@@ -2086,6 +2081,15 @@ elif pagina == "Agenda":
         sin_cotizar = st.checkbox("🖨️ Imprimir sin cotizar (total en blanco)", key=f"sincot_{st.session_state['form_key']}")
         solicitar_anticipo = st.checkbox("🔖 Solicitar anticipo (cliente nuevo)", key=f"anticipo_{st.session_state['form_key']}")
         monto_anticipo_in = st.number_input("Monto de anticipo", min_value=0.0, step=50.0, key=f"monto_anticipo_{st.session_state['form_key']}") if solicitar_anticipo else 0.0
+        minimo_manual = st.number_input("Mínimo manual (opcional)", min_value=0.0, value=0.0, step=50.0, key=f"minman_{st.session_state['form_key']}")
+
+    # Mínimo efectivo = el mayor entre el de config y el manual
+    min_efectivo = max(MINIMO, minimo_manual)
+    if hay_por_cotizar:
+        subtotal_final = None
+    else:
+        subtotal_final = max(subtotal_total, min_efectivo) if subtotal_total > 0 else 0
+
     if subtotal_final is None:
         monto_descuento = 0
         iva = 0
@@ -2101,8 +2105,8 @@ elif pagina == "Agenda":
             st.warning("⚠️ Cotización incompleta: hay servicios *por cotizar*. No se calcula el total hasta que tengan precio.")
         elif subtotal_final > 0:
             st.markdown(f"**Subtotal:** ${subtotal_final:,.0f}")
-            if subtotal_total is not None and 0 < subtotal_total < MINIMO:
-                st.caption(f"⚠️ Mínimo ${MINIMO:,}")
+            if subtotal_total is not None and 0 < subtotal_total < min_efectivo:
+                st.caption(f"⚠️ Aplicando mínimo ${min_efectivo:,.0f}")
             if aplica_descuento and descuento_pct > 0:
                 st.markdown(f"**Descuento ({descuento_pct}%):** -${monto_descuento:,.0f}")
             if aplica_iva:
