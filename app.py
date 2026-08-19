@@ -608,7 +608,7 @@ def cargar_config(empresa_id, access_token):
             }
 
         usuario_resp = client.table("usuarios")\
-            .select("template_pdf, logo_url, app_nombre, app_icono, ciudad, estadisticas_hoja")\
+            .select("template_pdf, logo_url, app_nombre, app_icono, ciudad, estadisticas_hoja, features")\
             .eq("id", empresa_id)\
             .single()\
             .execute()
@@ -618,6 +618,9 @@ def cargar_config(empresa_id, access_token):
         app_icono = usuario_resp.data.get("app_icono", "📊") if usuario_resp.data else "📊"
         ciudad = usuario_resp.data.get("ciudad", "") if usuario_resp.data else ""
         estadisticas_hoja = usuario_resp.data.get("estadisticas_hoja", "Estadisticas finales") if usuario_resp.data else "Estadisticas finales"
+        features = usuario_resp.data.get("features") if usuario_resp.data else {}
+        if not isinstance(features, dict):
+            features = {}
 
         return {
             "sheets": sheets,
@@ -633,6 +636,7 @@ def cargar_config(empresa_id, access_token):
             "ciudad": ciudad,
             "sheet_columnas": sheet_columnas,
             "estadisticas_hoja": estadisticas_hoja,
+            "features": features,
         }
 
     except Exception as e:
@@ -659,9 +663,9 @@ if st.session_state.get("usuario") and config_usuario:
     USUARIOS[st.session_state["usuario"]]["ciudad"] = config_usuario.get("ciudad", "")
     USUARIOS[st.session_state["usuario"]]["sheet_columnas"] = config_usuario.get("sheet_columnas", {})
     USUARIOS[st.session_state["usuario"]]["estadisticas_hoja"] = config_usuario.get("estadisticas_hoja", "Estadisticas finales")
+    USUARIOS[st.session_state["usuario"]]["features"] = config_usuario.get("features", {})
 
 NOMBRE_APP = USUARIOS.get(st.session_state["usuario"], {}).get("app_nombre", "CRM Dashboard")
-
 # ── CARGAR DATOS DESDE SUPABASE ──
 @st.cache_data(ttl=300)
 def cargar_datos(empresa_id, access_token):
@@ -985,7 +989,6 @@ elif pagina == "Ventas":
     finanzas_usuario = USUARIOS[st.session_state["usuario"]].get("finanzas", {})
     sheets_usuario = USUARIOS[st.session_state["usuario"]].get("sheets", {})
     nombre_hoja_stats = USUARIOS[st.session_state["usuario"]].get("estadisticas_hoja", "Estadisticas finales")
-
     if not finanzas_usuario:
         st.info("No hay datos financieros configurados para esta cuenta.")
     else:
@@ -1177,9 +1180,10 @@ elif pagina == "Ventas":
             )
     else:
         st.info("Aún no hay resultados de follow up registrados.")
+        _features_v = USUARIOS[st.session_state["usuario"]].get("features", {})
+    if _features_v.get("vendedor") and "vendedor" in df.columns:
         st.markdown("---")
-    st.subheader("👥 Ventas por vendedor")
-    if "vendedor" in df.columns:
+        st.subheader("👥 Ventas por vendedor")
         dfv = df.copy()
         dfv["Monto"] = pd.to_numeric(dfv["Monto"], errors="coerce").fillna(0)
         dfv["Fecha"] = pd.to_datetime(dfv["Fecha"], errors="coerce")
@@ -1198,8 +1202,6 @@ elif pagina == "Ventas":
             st.dataframe(resumen_v, use_container_width=True, hide_index=True)
         else:
             st.info("No hay ventas en ese periodo.")
-    else:
-        st.info("Aún no hay vendedores registrados.")
         # CLIENTES
 elif pagina == "Clientes":
     import urllib.parse
@@ -1773,7 +1775,7 @@ elif pagina == "Agenda":
     PAQUETES_COT = cotizador.get("paquetes", [])
     MINIMO = cotizador.get("minimo", 950)
     SHEET_COLS = USUARIOS[st.session_state["usuario"]].get("sheet_columnas", {})
-
+    features = USUARIOS[st.session_state["usuario"]].get("features", {})
     def get_supabase_auth():
         client_auth = create_client(
             st.secrets["SUPABASE_URL"],
@@ -1857,7 +1859,7 @@ elif pagina == "Agenda":
     empresa = st.session_state.get("empresa", "")
 
     # 💰 Banner de cuentas por cobrar
-    if not df_a.empty and "estado_pago" in df_a.columns:
+    if features.get("cobranza") and not df_a.empty and "estado_pago" in df_a.columns:
         _pc = df_a[(df_a["realizado"] == True) & (df_a["estado_pago"].isin(["pendiente", "parcial"]))].copy()
         if not _pc.empty:
             _pc["Monto"] = pd.to_numeric(_pc["Monto"], errors="coerce").fillna(0)
@@ -2023,15 +2025,17 @@ elif pagina == "Agenda":
     nombre = st.text_input("Nombre del cliente", key=f"nombre_{st.session_state['form_key']}")
     telefono = st.text_input("Teléfono(s)", key=f"tel_{st.session_state['form_key']}")
     direccion = st.text_input("Dirección", key=f"dir_{st.session_state['form_key']}")
-    tipo_cliente_sel = st.selectbox("Tipo de cliente", ["Residencial", "Comercial"], key=f"tipocli_{st.session_state['form_key']}")
+    tipo_cliente_sel = "Residencial"
     razon_social_in = ""
     rfc_in = ""
-    if tipo_cliente_sel == "Comercial":
-        colf1, colf2 = st.columns(2)
-        with colf1:
-            razon_social_in = st.text_input("Razón social", key=f"razon_{st.session_state['form_key']}")
-        with colf2:
-            rfc_in = st.text_input("RFC", key=f"rfc_{st.session_state['form_key']}")
+    if features.get("comercial"):
+        tipo_cliente_sel = st.selectbox("Tipo de cliente", ["Residencial", "Comercial"], key=f"tipocli_{st.session_state['form_key']}")
+        if tipo_cliente_sel == "Comercial":
+            colf1, colf2 = st.columns(2)
+            with colf1:
+                razon_social_in = st.text_input("Razón social", key=f"razon_{st.session_state['form_key']}")
+            with colf2:
+                rfc_in = st.text_input("RFC", key=f"rfc_{st.session_state['form_key']}")
     st.markdown("**🧼 Servicios**")
     st.caption("El precio se autocompleta desde el cotizador, pero puedes editarlo")
 
@@ -2102,9 +2106,12 @@ elif pagina == "Agenda":
         descuento_pct = st.number_input("Descuento (%)", min_value=0, max_value=100, value=0, key=f"desc_pct_{st.session_state['form_key']}") if aplica_descuento else 0
         aplica_iva = st.checkbox("Aplicar IVA 16% (factura)", key=f"iva_{st.session_state['form_key']}")
         sin_cotizar = st.checkbox("🖨️ Imprimir sin cotizar (total en blanco)", key=f"sincot_{st.session_state['form_key']}")
-        solicitar_anticipo = st.checkbox("🔖 Solicitar anticipo (cliente nuevo)", key=f"anticipo_{st.session_state['form_key']}")
-        monto_anticipo_in = st.number_input("Monto de anticipo", min_value=0.0, step=50.0, key=f"monto_anticipo_{st.session_state['form_key']}") if solicitar_anticipo else 0.0
-        minimo_manual = st.number_input("Mínimo manual (opcional)", min_value=0.0, value=0.0, step=50.0, key=f"minman_{st.session_state['form_key']}")
+        solicitar_anticipo = False
+        monto_anticipo_in = 0.0
+        if features.get("anticipo"):
+            solicitar_anticipo = st.checkbox("🔖 Solicitar anticipo (cliente nuevo)", key=f"anticipo_{st.session_state['form_key']}")
+            monto_anticipo_in = st.number_input("Monto de anticipo", min_value=0.0, step=50.0, key=f"monto_anticipo_{st.session_state['form_key']}") if solicitar_anticipo else 0.0
+        minimo_manual = st.number_input("Mínimo manual (opcional)", min_value=0.0, value=0.0, step=50.0, key=f"minman_{st.session_state['form_key']}") if features.get("minimo_manual") else 0.0
 
     # Mínimo efectivo = el mayor entre el de config y el manual
     min_efectivo = max(MINIMO, minimo_manual)
@@ -2138,7 +2145,7 @@ elif pagina == "Agenda":
             if sin_cotizar:
                 st.warning("⚠️ Hoja SIN COTIZAR: el total saldrá en blanco en el PDF. Cotiza en sitio y anota el total a mano.")
     origen_input = st.selectbox("Origen", ORIGENES, key=f"origen_{st.session_state['form_key']}")
-    vendedor_in = st.text_input("Vendedor (opcional)", key=f"vendedor_{st.session_state['form_key']}", placeholder="Ej. Hermana")
+    vendedor_in = st.text_input("Vendedor (opcional)", key=f"vendedor_{st.session_state['form_key']}", placeholder="Ej. Hermana") if features.get("vendedor") else ""
     col1, col2 = st.columns(2)
     with col1:
         fecha = st.date_input("Fecha", datetime.now(), key=f"fecha_{st.session_state['form_key']}")
@@ -2367,12 +2374,14 @@ elif pagina == "Agenda":
                 st.markdown(f"**📅 Fecha:** {fecha_row.strftime('%d/%m/%Y') if fecha_row else ''}{f' entre las {rango_row}' if rango_row else ''}")
                 st.markdown(f"**💰 Monto:** ${row.get('Monto', 0) or 0:,.0f}")
                 st.markdown(f"**🔍 Origen:** {limpiar_valor(row.get('Origen'))}")
-                st.markdown(f"**💳 Pago:** {limpiar_valor(row.get('estado_pago'), 'sin registrar')}")
-                _linea_tipo = f"**🏢 Tipo:** {limpiar_valor(row.get('tipo_cliente'), 'Residencial')}"
-                if limpiar_valor(row.get('factura')):
-                    _linea_tipo += f" · 🧾 {limpiar_valor(row.get('factura'))}"
-                st.markdown(_linea_tipo)
-                if row.get('anticipo_solicitado'):
+                if features.get("cobranza"):
+                    st.markdown(f"**💳 Pago:** {limpiar_valor(row.get('estado_pago'), 'sin registrar')}")
+                if features.get("comercial"):
+                    _linea_tipo = f"**🏢 Tipo:** {limpiar_valor(row.get('tipo_cliente'), 'Residencial')}"
+                    if limpiar_valor(row.get('factura')):
+                        _linea_tipo += f" · 🧾 {limpiar_valor(row.get('factura'))}"
+                    st.markdown(_linea_tipo)
+                if features.get("anticipo") and row.get('anticipo_solicitado'):
                     st.markdown(f"**🔖 Anticipo:** ${float(row.get('monto_anticipo') or 0):,.0f} solicitado")
                 st.markdown(f"**Estado:** {'✅ Realizado' if realizado else '⏳ Pendiente'}")
             with col2:
@@ -2546,70 +2555,72 @@ elif pagina == "Agenda":
                 st.success("✅ Este servicio ya fue realizado y guardado en Sheets.")
 
             # 💰 Sección de pago
-            st.markdown("#### 💰 Pago")
-            estado_actual = limpiar_valor(row.get("estado_pago"), "pendiente") or "pendiente"
-            forma_actual = limpiar_valor(row.get("forma_pago"), "")
-            opciones_estado = ["pendiente", "pagado", "parcial"]
-            opciones_forma = ["", "Efectivo", "Transferencia", "Tarjeta", "Cheque"]
-            monto_serv = float(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0.0
-            with st.form("pago_form"):
-                nuevo_estado = st.selectbox("Estado de pago", opciones_estado,
-                    index=opciones_estado.index(estado_actual) if estado_actual in opciones_estado else 0)
-                nueva_forma = st.selectbox("Forma de pago", opciones_forma,
-                    index=opciones_forma.index(forma_actual) if forma_actual in opciones_forma else 0)
-                nuevo_monto_pagado = st.number_input("Monto pagado (para parcial)", min_value=0.0,
-                    value=float(row.get("monto_pagado", 0) or 0), step=50.0)
-                guardar_pago = st.form_submit_button("💾 Guardar pago", use_container_width=True)
-                if guardar_pago:
-                    try:
-                        client_auth = get_supabase_auth()
-                        upd = {"estado_pago": nuevo_estado, "forma_pago": nueva_forma or None}
-                        if nuevo_estado == "pagado":
-                            upd["fecha_pago"] = datetime.now().date().isoformat()
-                            upd["monto_pagado"] = monto_serv
-                        elif nuevo_estado == "parcial":
-                            upd["monto_pagado"] = float(nuevo_monto_pagado)
-                        else:
-                            upd["monto_pagado"] = 0
-                            upd["fecha_pago"] = None
-                        client_auth.table("clientes").update(upd).eq("id", id_click).execute()
-                        st.success("✅ Pago actualizado.")
-                        st.cache_data.clear()
-                        del st.session_state["evento_seleccionado"]
-                        st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
-                        import time as t
-                        t.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error al guardar pago: {e}")
+            if features.get("cobranza"):
+                st.markdown("#### 💰 Pago")
+                estado_actual = limpiar_valor(row.get("estado_pago"), "pendiente") or "pendiente"
+                forma_actual = limpiar_valor(row.get("forma_pago"), "")
+                opciones_estado = ["pendiente", "pagado", "parcial"]
+                opciones_forma = ["", "Efectivo", "Transferencia", "Tarjeta", "Cheque"]
+                monto_serv = float(row.get("Monto", 0)) if pd.notnull(row.get("Monto", 0)) else 0.0
+                with st.form("pago_form"):
+                    nuevo_estado = st.selectbox("Estado de pago", opciones_estado,
+                        index=opciones_estado.index(estado_actual) if estado_actual in opciones_estado else 0)
+                    nueva_forma = st.selectbox("Forma de pago", opciones_forma,
+                        index=opciones_forma.index(forma_actual) if forma_actual in opciones_forma else 0)
+                    nuevo_monto_pagado = st.number_input("Monto pagado (para parcial)", min_value=0.0,
+                        value=float(row.get("monto_pagado", 0) or 0), step=50.0)
+                    guardar_pago = st.form_submit_button("💾 Guardar pago", use_container_width=True)
+                    if guardar_pago:
+                        try:
+                            client_auth = get_supabase_auth()
+                            upd = {"estado_pago": nuevo_estado, "forma_pago": nueva_forma or None}
+                            if nuevo_estado == "pagado":
+                                upd["fecha_pago"] = datetime.now().date().isoformat()
+                                upd["monto_pagado"] = monto_serv
+                            elif nuevo_estado == "parcial":
+                                upd["monto_pagado"] = float(nuevo_monto_pagado)
+                            else:
+                                upd["monto_pagado"] = 0
+                                upd["fecha_pago"] = None
+                            client_auth.table("clientes").update(upd).eq("id", id_click).execute()
+                            st.success("✅ Pago actualizado.")
+                            st.cache_data.clear()
+                            del st.session_state["evento_seleccionado"]
+                            st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
+                            import time as t
+                            t.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al guardar pago: {e}")
             # 🧾 Facturación
-            st.markdown("#### 🧾 Facturación")
-            tipo_actual = limpiar_valor(row.get("tipo_cliente"), "Residencial") or "Residencial"
-            with st.form("factura_form"):
-                nuevo_tipo = st.selectbox("Tipo de cliente", ["Residencial", "Comercial"],
-                    index=1 if tipo_actual == "Comercial" else 0)
-                nueva_razon = st.text_input("Razón social", value=limpiar_valor(row.get("razon_social")))
-                nuevo_rfc = st.text_input("RFC", value=limpiar_valor(row.get("rfc")))
-                nueva_factura = st.text_input("Número de factura", value=limpiar_valor(row.get("factura")), placeholder="Ej. FAC-2026-0932")
-                guardar_fact = st.form_submit_button("💾 Guardar facturación", use_container_width=True)
-                if guardar_fact:
-                    try:
-                        client_auth = get_supabase_auth()
-                        client_auth.table("clientes").update({
-                            "tipo_cliente": nuevo_tipo,
-                            "razon_social": nueva_razon or None,
-                            "rfc": nuevo_rfc or None,
-                            "factura": nueva_factura or None
-                        }).eq("id", id_click).execute()
-                        st.success("✅ Datos de facturación guardados.")
-                        st.cache_data.clear()
-                        del st.session_state["evento_seleccionado"]
-                        st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
-                        import time as t
-                        t.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+            if features.get("comercial"):
+                st.markdown("#### 🧾 Facturación")
+                tipo_actual = limpiar_valor(row.get("tipo_cliente"), "Residencial") or "Residencial"
+                with st.form("factura_form"):
+                    nuevo_tipo = st.selectbox("Tipo de cliente", ["Residencial", "Comercial"],
+                        index=1 if tipo_actual == "Comercial" else 0)
+                    nueva_razon = st.text_input("Razón social", value=limpiar_valor(row.get("razon_social")))
+                    nuevo_rfc = st.text_input("RFC", value=limpiar_valor(row.get("rfc")))
+                    nueva_factura = st.text_input("Número de factura", value=limpiar_valor(row.get("factura")), placeholder="Ej. FAC-2026-0932")
+                    guardar_fact = st.form_submit_button("💾 Guardar facturación", use_container_width=True)
+                    if guardar_fact:
+                        try:
+                            client_auth = get_supabase_auth()
+                            client_auth.table("clientes").update({
+                                "tipo_cliente": nuevo_tipo,
+                                "razon_social": nueva_razon or None,
+                                "rfc": nuevo_rfc or None,
+                                "factura": nueva_factura or None
+                            }).eq("id", id_click).execute()
+                            st.success("✅ Datos de facturación guardados.")
+                            st.cache_data.clear()
+                            del st.session_state["evento_seleccionado"]
+                            st.session_state["agenda_refresh"] = st.session_state.get("agenda_refresh", 0) + 1
+                            import time as t
+                            t.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
             st.markdown("#### ✏️ Editar datos del servicio")
             with st.form("editar_servicio_form"):
                 edit_nombre = st.text_input("Nombre", value=limpiar_valor(row.get("Nombre")))
