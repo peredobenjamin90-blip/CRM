@@ -1177,6 +1177,29 @@ elif pagina == "Ventas":
             )
     else:
         st.info("Aún no hay resultados de follow up registrados.")
+        st.markdown("---")
+    st.subheader("👥 Ventas por vendedor")
+    if "vendedor" in df.columns:
+        dfv = df.copy()
+        dfv["Monto"] = pd.to_numeric(dfv["Monto"], errors="coerce").fillna(0)
+        dfv["Fecha"] = pd.to_datetime(dfv["Fecha"], errors="coerce")
+        colv1, colv2 = st.columns(2)
+        with colv1:
+            desde_v = st.date_input("Desde", value=datetime(datetime.now().year, 1, 1), key="vend_desde")
+        with colv2:
+            hasta_v = st.date_input("Hasta", value=datetime.now(), key="vend_hasta")
+        dfv = dfv[(dfv["Fecha"].dt.date >= desde_v) & (dfv["Fecha"].dt.date <= hasta_v)]
+        dfv["vendedor"] = dfv["vendedor"].fillna("Sin asignar").replace("", "Sin asignar")
+        if not dfv.empty:
+            resumen_v = dfv.groupby("vendedor")["Monto"].agg(["sum", "count"]).reset_index()
+            resumen_v.columns = ["Vendedor", "Ventas", "Servicios"]
+            resumen_v = resumen_v.sort_values("Ventas", ascending=False)
+            resumen_v["Ventas"] = resumen_v["Ventas"].apply(lambda x: f"${x:,.0f}")
+            st.dataframe(resumen_v, use_container_width=True, hide_index=True)
+        else:
+            st.info("No hay ventas en ese periodo.")
+    else:
+        st.info("Aún no hay vendedores registrados.")
         # CLIENTES
 elif pagina == "Clientes":
     import urllib.parse
@@ -2115,7 +2138,7 @@ elif pagina == "Agenda":
             if sin_cotizar:
                 st.warning("⚠️ Hoja SIN COTIZAR: el total saldrá en blanco en el PDF. Cotiza en sitio y anota el total a mano.")
     origen_input = st.selectbox("Origen", ORIGENES, key=f"origen_{st.session_state['form_key']}")
-
+    vendedor_in = st.text_input("Vendedor (opcional)", key=f"vendedor_{st.session_state['form_key']}", placeholder="Ej. Hermana")
     col1, col2 = st.columns(2)
     with col1:
         fecha = st.date_input("Fecha", datetime.now(), key=f"fecha_{st.session_state['form_key']}")
@@ -2203,7 +2226,8 @@ elif pagina == "Agenda":
                         "razon_social": razon_social_in or None,
                         "rfc": rfc_in or None,
                         "anticipo_solicitado": bool(solicitar_anticipo),
-                        "monto_anticipo": float(monto_anticipo_in)
+                        "monto_anticipo": float(monto_anticipo_in),
+                        "vendedor": vendedor_in or None
                     }).execute()
                     fecha_txt = fecha_relativa(fecha)
                     hora_txt = f" entre las {rango_nuevo}" if rango_nuevo else ""
