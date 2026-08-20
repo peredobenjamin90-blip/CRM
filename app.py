@@ -1229,10 +1229,23 @@ elif pagina == "Ventas":
             tabla = pivot.reset_index().rename(columns={"canal": "Canal"})
             st.dataframe(tabla, use_container_width=True, hide_index=True)
 
+            det_cols = [
+                ("Fecha", "Fecha"), ("ID Cliente", "ID"), ("Nombre", "Nombre"),
+                ("Tel", "Teléfono"), ("correo", "Correo"), ("Dirección", "Dirección"),
+                ("Servicio", "Servicio"), ("Monto", "Monto"), ("Origen", "Canal"),
+                ("tipo_cliente", "Rubro"), ("vendedor", "Vendedor"), ("estado_pago", "Estado pago"),
+                ("forma_pago", "Forma pago"), ("factura", "Factura"),
+                ("razon_social", "Razón social"), ("rfc", "RFC"),
+            ]
+            detalle = pd.DataFrame()
+            for src, dst in det_cols:
+                detalle[dst] = dfc[src] if src in dfc.columns else ""
+            detalle["Fecha"] = pd.to_datetime(detalle["Fecha"], errors="coerce").dt.strftime("%Y-%m-%d")
+
             import io
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine="openpyxl") as writer:
-                tabla.to_excel(writer, index=False, sheet_name="Canales")
+                detalle.to_excel(writer, index=False, sheet_name="Servicios")
             output.seek(0)
             st.download_button(
                 "📥 Descargar Excel",
@@ -2066,6 +2079,7 @@ elif pagina == "Agenda":
     nombre = st.text_input("Nombre del cliente", key=f"nombre_{st.session_state['form_key']}")
     telefono = st.text_input("Teléfono(s)", key=f"tel_{st.session_state['form_key']}")
     direccion = st.text_input("Dirección", key=f"dir_{st.session_state['form_key']}")
+    correo_in = st.text_input("Correo (opcional)", key=f"correo_{st.session_state['form_key']}") 
     tipo_cliente_sel = "Residencial"
     razon_social_in = ""
     rfc_in = ""
@@ -2275,7 +2289,8 @@ elif pagina == "Agenda":
                         "rfc": rfc_in or None,
                         "anticipo_solicitado": bool(solicitar_anticipo),
                         "monto_anticipo": float(monto_anticipo_in),
-                        "vendedor": vendedor_in or None
+                        "vendedor": vendedor_in or None,
+                        "correo": correo_in or None
                     }).execute()
                     fecha_txt = fecha_relativa(fecha)
                     hora_txt = f" entre las {rango_nuevo}" if rango_nuevo else ""
