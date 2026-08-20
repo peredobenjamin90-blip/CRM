@@ -1180,7 +1180,8 @@ elif pagina == "Ventas":
             )
     else:
         st.info("Aún no hay resultados de follow up registrados.")
-        _features_v = USUARIOS[st.session_state["usuario"]].get("features", {})
+
+    _features_v = USUARIOS[st.session_state["usuario"]].get("features", {})
     if _features_v.get("vendedor") and "vendedor" in df.columns:
         st.markdown("---")
         st.subheader("👥 Ventas por vendedor")
@@ -1202,6 +1203,46 @@ elif pagina == "Ventas":
             st.dataframe(resumen_v, use_container_width=True, hide_index=True)
         else:
             st.info("No hay ventas en ese periodo.")
+
+    if USUARIOS[st.session_state["usuario"]].get("features", {}).get("reporte_canales"):
+        st.markdown("---")
+        st.subheader("📊 Reporte de canales de venta")
+        dfc = df.copy()
+        dfc["Monto"] = pd.to_numeric(dfc["Monto"], errors="coerce").fillna(0)
+        dfc["Fecha"] = pd.to_datetime(dfc["Fecha"], errors="coerce")
+        colr1, colr2 = st.columns(2)
+        with colr1:
+            desde_r = st.date_input("Desde", value=datetime(datetime.now().year, 1, 1), key="rep_desde")
+        with colr2:
+            hasta_r = st.date_input("Hasta", value=datetime.now(), key="rep_hasta")
+        dfc = dfc[(dfc["Fecha"].dt.date >= desde_r) & (dfc["Fecha"].dt.date <= hasta_r)]
+        if not dfc.empty:
+            dfc["canal"] = dfc["Origen"].fillna("Sin canal").replace("", "Sin canal")
+            if "tipo_cliente" in dfc.columns:
+                dfc["rubro"] = dfc["tipo_cliente"].fillna("Residencial").replace("", "Residencial")
+            else:
+                dfc["rubro"] = "Residencial"
+            pivot = dfc.pivot_table(index="canal", columns="rubro", values="Monto", aggfunc="sum", fill_value=0)
+            pivot["Total"] = pivot.sum(axis=1)
+            pivot["Servicios"] = dfc.groupby("canal").size()
+            pivot = pivot.sort_values("Total", ascending=False)
+            tabla = pivot.reset_index().rename(columns={"canal": "Canal"})
+            st.dataframe(tabla, use_container_width=True, hide_index=True)
+
+            import io
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                tabla.to_excel(writer, index=False, sheet_name="Canales")
+            output.seek(0)
+            st.download_button(
+                "📥 Descargar Excel",
+                data=output.getvalue(),
+                file_name=f"canales_{desde_r}_{hasta_r}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_canales"
+            )
+        else:
+            st.info("No hay datos en ese periodo.")
         # CLIENTES
 elif pagina == "Clientes":
     import urllib.parse
