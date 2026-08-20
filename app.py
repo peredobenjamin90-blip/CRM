@@ -983,94 +983,164 @@ if pagina == "Resumen":
 elif pagina == "Ventas":
     st.title("Análisis de Ventas")
 
-    # ── ESTADÍSTICAS FINANCIERAS DESDE SHEETS ──
-    st.subheader("💰 Margen de ganancia mensual")
+    _feat = USUARIOS[st.session_state["usuario"]].get("features", {})
 
-    finanzas_usuario = USUARIOS[st.session_state["usuario"]].get("finanzas", {})
-    sheets_usuario = USUARIOS[st.session_state["usuario"]].get("sheets", {})
-    nombre_hoja_stats = USUARIOS[st.session_state["usuario"]].get("estadisticas_hoja", "Estadisticas finales")
-    if not finanzas_usuario:
-        st.info("No hay datos financieros configurados para esta cuenta.")
-    else:
-        @st.cache_data(ttl=3600)
-        def cargar_estadisticas_finales(_client_gs, sheet_id_stats, nombre_hoja):
-            try:
-                sh = _client_gs.open_by_key(sheet_id_stats)
-                try:
-                    ws = sh.worksheet(nombre_hoja)
-                except:
-                    return pd.DataFrame()
-                datos = ws.get_all_values()
-                meses = []
-                for row in datos[1:13]:
-                    if len(row) >= 4 and row[0].strip():
-                        try:
-                            ventas = float(str(row[1]).replace("$","").replace(",","").strip()) if row[1].strip() else 0
-                            gastos = float(str(row[2]).replace("$","").replace(",","").strip()) if row[2].strip() else 0
-                            ganancia = float(str(row[3]).replace("$","").replace(",","").strip()) if row[3].strip() and row[3].strip() != "-" else 0
-                            meses.append({
-                                "Mes": row[0].strip(),
-                                "Ventas": ventas,
-                                "Gastos": gastos,
-                                "Ganancia": ganancia
-                            })
-                        except:
-                            pass
-                return pd.DataFrame(meses)
-            except Exception as e:
-                return pd.DataFrame()
-
-        sheet_id_stats = sheets_usuario.get(2026) or (sheets_usuario.get(max(sheets_usuario.keys())) if sheets_usuario else None)
-
-        if sheet_id_stats:
-            try:
-                client_gs_stats = get_gspread_client()
-                df_stats = cargar_estadisticas_finales(client_gs_stats, sheet_id_stats, nombre_hoja_stats)
-            except:
-                df_stats = pd.DataFrame()
-
-            if not df_stats.empty:
-                df_plot = df_stats[df_stats["Ventas"] > 0].copy()
-
-                if not df_plot.empty:
-                    col1, col2, col3 = st.columns(3)
-                    col1.metric("Total ventas", f"${df_plot['Ventas'].sum():,.0f}")
-                    col2.metric("Total gastos", f"${df_plot['Gastos'].sum():,.0f}")
-                    col3.metric("Ganancia total", f"${df_plot['Ganancia'].sum():,.0f}")
-
-                    fig_margen = px.bar(
-                        df_plot,
-                        x="Mes",
-                        y=["Ventas", "Gastos", "Ganancia"],
-                        barmode="group",
-                        color_discrete_map={
-                            "Ventas": "#4F6AF0",
-                            "Gastos": "#EF4444",
-                            "Ganancia": "#10B981"
-                        },
-                        labels={"value": "Pesos MXN", "variable": "Concepto"}
-                    )
-                    fig_margen.update_layout(
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        legend_title_text=""
-                    )
-                    st.plotly_chart(fig_margen, use_container_width=True)
-
-                    df_tabla = df_plot.copy()
-                    df_tabla["Margen %"] = (df_tabla["Ganancia"] / df_tabla["Ventas"] * 100).round(1).astype(str) + "%"
-                    df_tabla["Ventas"] = df_tabla["Ventas"].apply(lambda x: f"${x:,.0f}")
-                    df_tabla["Gastos"] = df_tabla["Gastos"].apply(lambda x: f"${x:,.0f}")
-                    df_tabla["Ganancia"] = df_tabla["Ganancia"].apply(lambda x: f"${x:,.0f}")
-                    st.dataframe(df_tabla, use_container_width=True, hide_index=True)
-                else:
-                    st.info("Aún no hay datos financieros para este año.")
-            else:
-                st.info("No se encontró la hoja de estadísticas en el Sheet configurado.")
+    if _feat.get("sheets", True):
+        # ── ESTADÍSTICAS FINANCIERAS DESDE SHEETS ──
+        st.subheader("💰 Margen de ganancia mensual")
+        finanzas_usuario = USUARIOS[st.session_state["usuario"]].get("finanzas", {})
+        sheets_usuario = USUARIOS[st.session_state["usuario"]].get("sheets", {})
+        nombre_hoja_stats = USUARIOS[st.session_state["usuario"]].get("estadisticas_hoja", "Estadisticas finales")
+        if not finanzas_usuario:
+            st.info("No hay datos financieros configurados para esta cuenta.")
         else:
-            st.info("No hay Sheet configurado.")
+            @st.cache_data(ttl=3600)
+            def cargar_estadisticas_finales(_client_gs, sheet_id_stats, nombre_hoja):
+                try:
+                    sh = _client_gs.open_by_key(sheet_id_stats)
+                    try:
+                        ws = sh.worksheet(nombre_hoja)
+                    except:
+                        return pd.DataFrame()
+                    datos = ws.get_all_values()
+                    meses = []
+                    for row in datos[1:13]:
+                        if len(row) >= 4 and row[0].strip():
+                            try:
+                                ventas = float(str(row[1]).replace("$","").replace(",","").strip()) if row[1].strip() else 0
+                                gastos = float(str(row[2]).replace("$","").replace(",","").strip()) if row[2].strip() else 0
+                                ganancia = float(str(row[3]).replace("$","").replace(",","").strip()) if row[3].strip() and row[3].strip() != "-" else 0
+                                meses.append({"Mes": row[0].strip(), "Ventas": ventas, "Gastos": gastos, "Ganancia": ganancia})
+                            except:
+                                pass
+                    return pd.DataFrame(meses)
+                except Exception as e:
+                    return pd.DataFrame()
 
-    st.markdown("---")
+            sheet_id_stats = sheets_usuario.get(2026) or (sheets_usuario.get(max(sheets_usuario.keys())) if sheets_usuario else None)
+            if sheet_id_stats:
+                try:
+                    client_gs_stats = get_gspread_client()
+                    df_stats = cargar_estadisticas_finales(client_gs_stats, sheet_id_stats, nombre_hoja_stats)
+                except:
+                    df_stats = pd.DataFrame()
+                if not df_stats.empty:
+                    df_plot = df_stats[df_stats["Ventas"] > 0].copy()
+                    if not df_plot.empty:
+                        col1, col2, col3 = st.columns(3)
+                        col1.metric("Total ventas", f"${df_plot['Ventas'].sum():,.0f}")
+                        col2.metric("Total gastos", f"${df_plot['Gastos'].sum():,.0f}")
+                        col3.metric("Ganancia total", f"${df_plot['Ganancia'].sum():,.0f}")
+                        fig_margen = px.bar(df_plot, x="Mes", y=["Ventas","Gastos","Ganancia"], barmode="group",
+                            color_discrete_map={"Ventas":"#4F6AF0","Gastos":"#EF4444","Ganancia":"#10B981"},
+                            labels={"value":"Pesos MXN","variable":"Concepto"})
+                        fig_margen.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend_title_text="")
+                        st.plotly_chart(fig_margen, use_container_width=True)
+                        df_tabla = df_plot.copy()
+                        df_tabla["Margen %"] = (df_tabla["Ganancia"] / df_tabla["Ventas"] * 100).round(1).astype(str) + "%"
+                        df_tabla["Ventas"] = df_tabla["Ventas"].apply(lambda x: f"${x:,.0f}")
+                        df_tabla["Gastos"] = df_tabla["Gastos"].apply(lambda x: f"${x:,.0f}")
+                        df_tabla["Ganancia"] = df_tabla["Ganancia"].apply(lambda x: f"${x:,.0f}")
+                        st.dataframe(df_tabla, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Aún no hay datos financieros para este año.")
+                else:
+                    st.info("No se encontró la hoja de estadísticas en el Sheet configurado.")
+            else:
+                st.info("No hay Sheet configurado.")
+        st.markdown("---")
+
+    elif _feat.get("gastos"):
+        st.subheader("💰 Margen de ganancia mensual")
+        gcli = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+        gcli.postgrest.auth(st.session_state.get("access_token", ""))
+        try:
+            gastos_resp = gcli.table("gastos").select("*").eq("empresa_id", st.session_state["empresa_id"]).execute()
+            df_gastos = pd.DataFrame(gastos_resp.data) if gastos_resp.data else pd.DataFrame(columns=["id","fecha","concepto","monto","categoria"])
+        except Exception as e:
+            df_gastos = pd.DataFrame(columns=["id","fecha","concepto","monto","categoria"])
+            st.warning(f"No se pudieron cargar los gastos: {e}")
+
+        año_m = st.selectbox("Año:", años_sin_2026, index=len(años_sin_2026)-1, key="margen_año") if años_sin_2026 else datetime.now().year
+
+        dfm = df[df["Año"] == año_m].copy()
+        ventas_mes = dfm.groupby("Mes")["Monto"].sum()
+
+        if not df_gastos.empty:
+            df_gastos["fecha"] = pd.to_datetime(df_gastos["fecha"], errors="coerce")
+            df_gastos["monto"] = pd.to_numeric(df_gastos["monto"], errors="coerce").fillna(0)
+            dg = df_gastos[df_gastos["fecha"].dt.year == int(año_m)]
+            gastos_mes = dg.groupby(dg["fecha"].dt.month)["monto"].sum()
+        else:
+            gastos_mes = pd.Series(dtype=float)
+
+        nombres_meses = {1:"Ene",2:"Feb",3:"Mar",4:"Abr",5:"May",6:"Jun",7:"Jul",8:"Ago",9:"Sep",10:"Oct",11:"Nov",12:"Dic"}
+        filas = []
+        for mnum in range(1, 13):
+            v = float(ventas_mes.get(mnum, 0))
+            g = float(gastos_mes.get(mnum, 0))
+            if v > 0 or g > 0:
+                filas.append({"Mes": nombres_meses[mnum], "Ventas": v, "Gastos": g, "Ganancia": v - g})
+        df_margen = pd.DataFrame(filas)
+
+        if not df_margen.empty:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Total ventas", f"${df_margen['Ventas'].sum():,.0f}")
+            c2.metric("Total gastos", f"${df_margen['Gastos'].sum():,.0f}")
+            c3.metric("Ganancia total", f"${df_margen['Ganancia'].sum():,.0f}")
+            fig_m = px.bar(df_margen, x="Mes", y=["Ventas","Gastos","Ganancia"], barmode="group",
+                color_discrete_map={"Ventas":"#4F6AF0","Gastos":"#EF4444","Ganancia":"#10B981"},
+                labels={"value":"Pesos MXN","variable":"Concepto"})
+            fig_m.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend_title_text="")
+            st.plotly_chart(fig_m, use_container_width=True)
+            df_mt = df_margen.copy()
+            df_mt["Margen %"] = df_mt.apply(lambda r: f"{(r['Ganancia']/r['Ventas']*100):.1f}%" if r['Ventas'] > 0 else "—", axis=1)
+            for c in ["Ventas","Gastos","Ganancia"]:
+                df_mt[c] = df_mt[c].apply(lambda x: f"${x:,.0f}")
+            st.dataframe(df_mt, use_container_width=True, hide_index=True)
+        else:
+            st.info("Aún no hay ventas ni gastos para este año.")
+
+        with st.expander("➕ Registrar gasto"):
+            with st.form("gasto_form"):
+                gf1, gf2 = st.columns(2)
+                with gf1:
+                    g_fecha = st.date_input("Fecha", value=datetime.now(), key="gasto_fecha")
+                    g_concepto = st.text_input("Concepto", key="gasto_concepto")
+                with gf2:
+                    g_monto = st.number_input("Monto", min_value=0.0, step=50.0, key="gasto_monto")
+                    g_cat = st.text_input("Categoría (opcional)", key="gasto_cat")
+                if st.form_submit_button("💾 Guardar gasto", use_container_width=True):
+                    try:
+                        gcli.table("gastos").insert({
+                            "empresa_id": st.session_state["empresa_id"],
+                            "fecha": g_fecha.isoformat(),
+                            "concepto": g_concepto,
+                            "monto": float(g_monto),
+                            "categoria": g_cat or None
+                        }).execute()
+                        st.success("✅ Gasto registrado.")
+                        st.cache_data.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+
+        if not df_gastos.empty:
+            with st.expander("📋 Ver / borrar gastos"):
+                for _, gr in df_gastos.sort_values("fecha", ascending=False).iterrows():
+                    gcol1, gcol2 = st.columns([5, 1])
+                    with gcol1:
+                        gfec = gr["fecha"].strftime("%d/%m/%Y") if pd.notnull(gr["fecha"]) else "—"
+                        st.write(f"{gfec} — {gr.get('concepto','')} — ${float(gr.get('monto',0)):,.0f}")
+                    with gcol2:
+                        if st.button("🗑️", key=f"delgasto_{gr['id']}"):
+                            try:
+                                gcli.table("gastos").delete().eq("id", gr["id"]).execute()
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error: {e}")
+        st.markdown("---")
 
     ventas_año = df[df["Año"].isin(años_sin_2026)].groupby("Año")["Monto"].sum().reset_index()
     ventas_año.columns = ["Año", "Total"]
