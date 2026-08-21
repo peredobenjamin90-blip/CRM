@@ -747,7 +747,7 @@ with st.sidebar:
         st.image(logo_url, width=120)
     st.markdown(f"<h3 style='color:white'>{st.session_state['empresa']}</h3>", unsafe_allow_html=True)
     st.markdown("---")
-    paginas = ["Resumen", "Ventas", "Clientes", "Servicios", "Follow Up", "Agenda", "Cotizaciones", "Chat"]
+    paginas = ["Resumen", "Ventas", "Clientes", "Servicios", "Follow Up", "Agenda", "Cotizaciones", "Chat", "Mi cuenta"]
 
     if "pagina" not in st.session_state:
         st.session_state["pagina"] = "Resumen"
@@ -762,26 +762,6 @@ with st.sidebar:
     if st.button("Actualizar datos", key="sidebar_actualizar", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
-
-    st.markdown("---")
-
-    with st.expander("🔑 Cambiar contraseña"):
-        with st.form("cambiar_pass_form"):
-            nueva_pass = st.text_input("Nueva contraseña", type="password")
-            confirmar_pass = st.text_input("Confirmar contraseña", type="password")
-            if st.form_submit_button("Actualizar contraseña", use_container_width=True):
-                if len(nueva_pass) < 6:
-                    st.error("La contraseña debe tener al menos 6 caracteres.")
-                elif nueva_pass != confirmar_pass:
-                    st.error("Las contraseñas no coinciden.")
-                else:
-                    try:
-                        sb = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-                        sb.auth.set_session(st.session_state["access_token"], st.session_state.get("refresh_token", ""))
-                        sb.auth.update_user({"password": nueva_pass})
-                        st.success("✅ Contraseña actualizada. Úsala la próxima vez que inicies sesión.")
-                    except Exception as e:
-                        st.error(f"Error al cambiar contraseña: {e}")
 
     st.markdown("---")
 
@@ -3220,3 +3200,23 @@ elif pagina == "Cotizaciones":
         if st.button("Limpiar cotización", use_container_width=True):
             st.session_state["items_cotizacion"] = []
             st.rerun()
+elif pagina == "Mi cuenta":
+    st.title("🔑 Mi cuenta")
+    st.write(f"**Negocio:** {st.session_state.get('empresa', '')}")
+    st.markdown("### Cambiar contraseña")
+    with st.form("cambiar_pass_form"):
+        nueva_pass = st.text_input("Nueva contraseña", type="password")
+        confirmar_pass = st.text_input("Confirmar contraseña", type="password")
+        if st.form_submit_button("Actualizar contraseña"):
+            if len(nueva_pass) < 6:
+                st.error("La contraseña debe tener al menos 6 caracteres.")
+            elif nueva_pass != confirmar_pass:
+                st.error("Las contraseñas no coinciden.")
+            else:
+                try:
+                    sb = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+                    sb.auth.set_session(st.session_state["access_token"], st.session_state.get("refresh_token", ""))
+                    sb.auth.update_user({"password": nueva_pass})
+                    st.success("✅ Contraseña actualizada. Úsala la próxima vez que inicies sesión.")
+                except Exception as e:
+                    st.error(f"Error al cambiar contraseña: {e}")
