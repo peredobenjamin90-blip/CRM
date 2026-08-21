@@ -954,31 +954,32 @@ if pagina == "Resumen":
     # ─────────────────────────────
     # 💰 FLUJO DE EFECTIVO
     # ─────────────────────────────
-    st.subheader("💰 Flujo de efectivo")
+    if USUARIOS[st.session_state["usuario"]].get("features", {}).get("sheets", True):
+        st.subheader("💰 Flujo de efectivo")
 
-    finanzas_usuario = USUARIOS[st.session_state["usuario"]].get("finanzas", {})
+        finanzas_usuario = USUARIOS[st.session_state["usuario"]].get("finanzas", {})
 
-    if finanzas_usuario:
-        años_finanzas = list(finanzas_usuario.keys())
-        año_finanzas = st.selectbox(
-            "Año financiero:",
-            años_finanzas,
-            index=len(años_finanzas)-1
-        )
-        try:
-            ingresos, gastos, utilidad = cargar_finanzas(finanzas_usuario[año_finanzas])
-            if ingresos is not None:
-                col1, col2, col3 = st.columns(3)
-                col1.metric("💰 Ingresos", f"${ingresos:,.0f}")
-                col2.metric("💸 Gastos", f"${gastos:,.0f}")
-                col3.metric("🟢 Utilidad", f"${utilidad:,.0f}")
-            else:
-                st.warning("No se pudieron leer los datos del sheet")
-        except Exception as e:
-            st.error("Error cargando finanzas")
-            st.write(e)
-    else:
-        st.info("No hay datos de flujo de efectivo configurados.")
+        if finanzas_usuario:
+            años_finanzas = list(finanzas_usuario.keys())
+            año_finanzas = st.selectbox(
+                "Año financiero:",
+                años_finanzas,
+                index=len(años_finanzas)-1
+            )
+            try:
+                ingresos, gastos, utilidad = cargar_finanzas(finanzas_usuario[año_finanzas])
+                if ingresos is not None:
+                    col1, col2, col3 = st.columns(3)
+                    col1.metric("💰 Ingresos", f"${ingresos:,.0f}")
+                    col2.metric("💸 Gastos", f"${gastos:,.0f}")
+                    col3.metric("🟢 Utilidad", f"${utilidad:,.0f}")
+                else:
+                    st.warning("No se pudieron leer los datos del sheet")
+            except Exception as e:
+                st.error("Error cargando finanzas")
+                st.write(e)
+        else:
+            st.info("No hay datos de flujo de efectivo configurados.")
     # ── VENTAS ──
 elif pagina == "Ventas":
     st.title("Análisis de Ventas")
