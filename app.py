@@ -495,6 +495,7 @@ def login():
                     st.session_state["auth_id"] = str(response.user.id)
                     st.session_state["empresa_id"] = user_data.data["id"]
                     st.session_state["access_token"] = response.session.access_token
+                    st.session_state["refresh_token"] = response.session.refresh_token
                     st.rerun()
 
                 except Exception as e:
@@ -764,12 +765,30 @@ with st.sidebar:
 
     st.markdown("---")
 
+    with st.expander("🔑 Cambiar contraseña"):
+        with st.form("cambiar_pass_form"):
+            nueva_pass = st.text_input("Nueva contraseña", type="password")
+            confirmar_pass = st.text_input("Confirmar contraseña", type="password")
+            if st.form_submit_button("Actualizar contraseña", use_container_width=True):
+                if len(nueva_pass) < 6:
+                    st.error("La contraseña debe tener al menos 6 caracteres.")
+                elif nueva_pass != confirmar_pass:
+                    st.error("Las contraseñas no coinciden.")
+                else:
+                    try:
+                        sb = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+                        sb.auth.set_session(st.session_state["access_token"], st.session_state.get("refresh_token", ""))
+                        sb.auth.update_user({"password": nueva_pass})
+                        st.success("✅ Contraseña actualizada. Úsala la próxima vez que inicies sesión.")
+                    except Exception as e:
+                        st.error(f"Error al cambiar contraseña: {e}")
+
+    st.markdown("---")
+
     if st.button("Cerrar sesión", key="sidebar_logout", use_container_width=True):
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
-
-
     # ── RESUMEN ──
     # 🔥 IMPORTANTE: ESTO VA FUERA DEL SIDEBAR
 pagina = st.session_state["pagina"]
