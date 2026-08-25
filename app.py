@@ -2346,7 +2346,7 @@ elif pagina == "Agenda":
                         "cantidad": str(len(renglones_validos)),
                         "paquete": renglones_validos[0]["paquete"] if renglones_validos else "",
                         "fecha": fecha.isoformat(),
-                        "monto": float(total_final) if total_final is not None else 0,
+                        "monto": float(total_final) if (total_final is not None and not sin_cotizar) else 0,
                         "origen": origen_input,
                         "año": fecha.year,
                         "realizado": False,
@@ -2362,17 +2362,23 @@ elif pagina == "Agenda":
                         "monto_anticipo": float(monto_anticipo_in),
                         "vendedor": vendedor_in or None,
                         "correo": correo_in or None,
-                        "ciudad": ciudad_in or None
+                        "ciudad": ciudad_in or None,
+                        "sin_cotizar": bool(sin_cotizar)
                     }).execute()
                     fecha_txt = fecha_relativa(fecha)
                     hora_txt = f" entre las {rango_nuevo}" if rango_nuevo else ""
                     st.success(f"✅ Agendado para {nombre} (ID: {id_cliente}) — {fecha.strftime('%d/%m/%Y')} ({fecha_txt}){hora_txt} — Total: ${total_final:,.0f}")
 
                     try:
-                        if sin_cotizar or total_final is None:
+                        if sin_cotizar:
                             h_sub, h_desc, h_iva, h_tot, h_dpct = 0, 0, 0, 0, 0
+                            items_hoja = [{**it, "precio_unitario": None, "subtotal": None} for it in renglones_validos]
+                        elif total_final is None:
+                            h_sub, h_desc, h_iva, h_tot, h_dpct = 0, 0, 0, 0, 0
+                            items_hoja = renglones_validos
                         else:
                             h_sub, h_desc, h_iva, h_tot, h_dpct = subtotal_final, monto_descuento, iva, total_final, descuento_pct
+                            items_hoja = renglones_validos
                         pdf_bytes = generar_hoja_servicio(
                             nombre=nombre,
                             direccion=direccion,
@@ -2381,7 +2387,7 @@ elif pagina == "Agenda":
                             hora=rango_nuevo,
                             folio="",
                             origen=origen_input,
-                            items=renglones_validos,
+                            items=items_hoja,
                             subtotal=h_sub,
                             descuento=h_desc,
                             descuento_pct=h_dpct,
@@ -2569,6 +2575,12 @@ elif pagina == "Agenda":
                     base_ev = subtotal_ev - monto_desc_ev
                     iva_ev = base_ev * 0.16 if aplica_iva_ev else 0
                     total_ev = base_ev + iva_ev
+
+                # Si se agendó "sin cotizar": la hoja va en blanco (precios y totales)
+                sin_cotizar_ev = str(row.get("sin_cotizar")).strip().lower() in ["true", "1", "t", "yes", "si", "sí"]
+                if sin_cotizar_ev:
+                    items_ev = [{**it, "precio_unitario": None, "subtotal": None} for it in items_ev]
+                    subtotal_ev, monto_desc_ev, iva_ev, total_ev, desc_pct_ev = 0, 0, 0, 0, 0
 
                 pdf_bytes_ev = generar_hoja_servicio(
                     nombre=limpiar_valor(row.get("Nombre")),
