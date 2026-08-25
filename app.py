@@ -2149,6 +2149,7 @@ elif pagina == "Agenda":
     nombre = st.text_input("Nombre del cliente", key=f"nombre_{st.session_state['form_key']}")
     telefono = st.text_input("Teléfono(s)", key=f"tel_{st.session_state['form_key']}")
     direccion = st.text_input("Dirección", key=f"dir_{st.session_state['form_key']}")
+    ciudad_in = st.text_input("Ciudad / Municipio (opcional)", key=f"ciudad_{st.session_state['form_key']}")
     correo_in = st.text_input("Correo (opcional)", key=f"correo_{st.session_state['form_key']}") 
     tipo_cliente_sel = "Residencial"
     razon_social_in = ""
@@ -2360,7 +2361,8 @@ elif pagina == "Agenda":
                         "anticipo_solicitado": bool(solicitar_anticipo),
                         "monto_anticipo": float(monto_anticipo_in),
                         "vendedor": vendedor_in or None,
-                        "correo": correo_in or None
+                        "correo": correo_in or None,
+                        "ciudad": ciudad_in or None
                     }).execute()
                     fecha_txt = fecha_relativa(fecha)
                     hora_txt = f" entre las {rango_nuevo}" if rango_nuevo else ""
@@ -2385,7 +2387,7 @@ elif pagina == "Agenda":
                             descuento_pct=h_dpct,
                             iva=h_iva,
                             total=h_tot,
-                            ciudad=USUARIOS[st.session_state["usuario"]].get("ciudad", ""),
+                            ciudad=ciudad_in,
                             template_path=USUARIOS[st.session_state["usuario"]].get("template_pdf") or "assets/Hoja de servicio de Maxi Clean.pdf"
                         )
                         st.download_button(
@@ -2582,7 +2584,7 @@ elif pagina == "Agenda":
                     descuento_pct=desc_pct_ev,
                     iva=iva_ev,
                     total=(total_ev or 0),
-                    ciudad=USUARIOS[st.session_state["usuario"]].get("ciudad", ""),
+                    ciudad=limpiar_valor(row.get("ciudad")),
                     template_path=USUARIOS[st.session_state["usuario"]].get("template_pdf") or "assets/Hoja de servicio de Maxi Clean.pdf"
                 )
                 st.download_button(
